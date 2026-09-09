@@ -19,17 +19,8 @@ function sanitizePathSegment(value, fallback = 'documento') {
   return normalized || fallback
 }
 
-function sanitizeFileName(value) {
-  const normalized = String(value ?? 'documento.pdf')
-    .trim()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-
-  const safeName = normalized || 'documento.pdf'
-  return safeName.toLowerCase().endsWith('.pdf') ? safeName : `${safeName}.pdf`
+function resolveFileName(value) {
+  return typeof value === 'string' && value.length > 0 ? value : 'documento.pdf'
 }
 
 function isRemoteAttachmentPath(value) {
@@ -63,7 +54,7 @@ function buildStoragePath({ tableName, fieldName, fileName }) {
     sanitizePathSegment(tableName, 'documentos'),
     sanitizePathSegment(fieldName, 'pdf'),
     recordId,
-    sanitizeFileName(fileName),
+    resolveFileName(fileName),
   ].join('/')
 }
 
@@ -144,7 +135,7 @@ export function listAttachmentMetadata() {
 
 async function saveRemoteAttachment(file, options = {}) {
   const supabase = assertSupabaseConfigured()
-  const fileName = sanitizeFileName(options.fileName ?? file.name)
+  const fileName = resolveFileName(options.fileName ?? file.name)
   const path = buildStoragePath({
     tableName: options.tableName,
     fieldName: options.fieldName,

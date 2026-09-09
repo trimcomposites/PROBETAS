@@ -58,5 +58,13 @@ export function getUserError(error, fallbackMessage) {
     }
   }
 
+  if (source.includes('invalid key')) {
+    return {
+      message:
+        'No se pudo subir el PDF porque el nombre del archivo contiene caracteres no compatibles. Renómbralo sin tildes ni caracteres especiales y vuelve a intentarlo.',
+      fieldName: null,
+    }
+  }
+
   return { message: fallbackMessage, fieldName: null }
 }
