@@ -609,35 +609,6 @@ function App() {
     setFormFieldErrors({})
   }
 
-  function getDraftByTarget(targetDraft) {
-    if (targetDraft === 'preImpregnadoDraft') {
-      return preImpregnadoDraft
-    }
-
-    if (targetDraft === 'relatedRecordDraft') {
-      return relatedRecordDraft
-    }
-
-    return draft
-  }
-
-  function buildPdfAttachmentName(targetDraft, fieldName) {
-    const sourceDraft = getDraftByTarget(targetDraft) ?? {}
-    const rawBaseName =
-      sourceDraft.alias ||
-      sourceDraft.nombre ||
-      sourceDraft.title ||
-      'Documento'
-    const baseName = String(rawBaseName)
-      .trim()
-      .replace(/\s+/g, '')
-      .replace(/[^a-zA-Z0-9_-]/g, '')
-    const safeBaseName = baseName || 'Documento'
-    const suffix = fieldName === 'pdf_msdt_url' ? 'MSDT' : 'MDS'
-
-    return `${safeBaseName}${suffix}.pdf`
-  }
-
   function getAttachmentTableName(targetDraft, options = {}) {
     if (options.tableName) {
       return options.tableName
@@ -1216,9 +1187,7 @@ function App() {
   }
 
   async function handleAttachmentUpload(targetDraft, fieldName, file, options = {}) {
-    const filename = buildPdfAttachmentName(targetDraft, fieldName)
     const metadata = await saveAttachment(file, {
-      fileName: filename,
       tableName: getAttachmentTableName(targetDraft, options),
       fieldName,
     })

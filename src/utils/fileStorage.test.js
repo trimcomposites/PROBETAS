@@ -6,7 +6,7 @@ vi.mock('../lib/supabaseClient', () => ({
   assertSupabaseConfigured: () => supabaseState.client,
 }))
 
-import { previewAttachment } from './fileStorage'
+import { previewAttachment, saveAttachment } from './fileStorage'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -32,5 +32,27 @@ describe('previewAttachment', () => {
     expect(download).toHaveBeenCalledWith('PRE-IMPREGNADO/pdf_mds/material.pdf')
     expect(previewTab.location.href).toBe('blob:pdf-preview')
     expect(previewTab.close).not.toHaveBeenCalled()
+  })
+})
+
+describe('saveAttachment', () => {
+  test('conserva sin cambios el nombre original al subir un PDF remoto', async () => {
+    const upload = vi.fn().mockResolvedValue({ error: null })
+    const file = new File(['pdf'], 'Informe revisión (final).PDF', {
+      type: 'application/pdf',
+    })
+    supabaseState.client = { storage: { from: () => ({ upload }) } }
+
+    const metadata = await saveAttachment(file, {
+      tableName: 'PROBETAS',
+      fieldName: 'pdf_mds_url',
+    })
+
+    const [path, uploadedFile] = upload.mock.calls[0]
+    expect(path).toMatch(
+      /^probetas\/pdf_mds_url\/[^/]+\/Informe revisión \(final\)\.PDF$/,
+    )
+    expect(uploadedFile).toBe(file)
+    expect(metadata.name).toBe('Informe revisión (final).PDF')
   })
 })
