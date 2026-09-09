@@ -1187,16 +1187,20 @@ function App() {
   }
 
   async function handleAttachmentUpload(targetDraft, fieldName, file, options = {}) {
-    const metadata = await saveAttachment(file, {
-      tableName: getAttachmentTableName(targetDraft, options),
-      fieldName,
-    })
+    try {
+      const metadata = await saveAttachment(file, {
+        tableName: getAttachmentTableName(targetDraft, options),
+        fieldName,
+      })
 
-    setAttachmentIndex((currentIndex) => ({
-      ...currentIndex,
-      [metadata.id]: metadata,
-    }))
-    setDraftFieldValue(targetDraft, fieldName, metadata.id)
+      setAttachmentIndex((currentIndex) => ({
+        ...currentIndex,
+        [metadata.id]: metadata,
+      }))
+      setDraftFieldValue(targetDraft, fieldName, metadata.id)
+    } catch (error) {
+      showSafeError(error, 'No se pudo subir el PDF.')
+    }
   }
 
   function handleAttachmentClear(targetDraft, fieldName) {
