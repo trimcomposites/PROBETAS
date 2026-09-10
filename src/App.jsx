@@ -5,6 +5,7 @@ import ArchivedRecordsToggle from './components/ArchivedRecordsToggle'
 import AuthScreen from './components/AuthScreen'
 import BrandWordmark from './components/BrandWordmark'
 import FormModal from './components/FormModal'
+import GlobalRecordSearch from './components/GlobalRecordSearch'
 import PasswordRecoveryScreen from './components/PasswordRecoveryScreen'
 import PdfDropzone from './components/PdfDropzone'
 import ProbetaForm from './components/ProbetaForm'
@@ -85,6 +86,7 @@ import {
   parseFieldValue,
 } from './utils/records'
 import { getReferencedTableName, getTable } from './utils/schema'
+import { filterRecordRows, getSearchFieldOptions } from './utils/recordSearch'
 import { getPermissionSet, normalizeRole, ROLE_LABELS } from './utils/permissions'
 import { updateRecipeStep } from './utils/recipeSteps'
 import { formatTemperatureInput } from './utils/temperatureUnits'
@@ -127,7 +129,9 @@ function App() {
   const [isLoadingDatabase, setIsLoadingDatabase] = useState(true)
   const [databaseError, setDatabaseError] = useState('')
   const [recordListMode, setRecordListMode] = useState('active')
-  const [selectedTableName, setSelectedTableName] = useState(SECTION_ORDER[0])
+  const [selectedTableName, setSelectedTableName] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchFilters, setSearchFilters] = useState([])
   const [selectedRecordIndex, setSelectedRecordIndex] = useState(null)
   const [activeProbetaDraftId, setActiveProbetaDraftId] = useState(null)
   const [draft, setDraft] = useState(() =>
@@ -169,16 +173,45 @@ function App() {
   const [recipeTableTemperatureUnit, setRecipeTableTemperatureUnit] = useState('celsius')
   const operationGateRef = useRef(createOperationGate())
 
-  const sectionRecordsRaw = database[selectedTableName] ?? []
-  const sectionRecords =
-    selectedTableName === 'PROBETA'
-      ? [
-          ...buildProbetaRows(sectionRecordsRaw, database),
-          ...buildProbetaDraftRows(database.PROBETA_BORRADORES ?? []),
-        ]
-      : selectedTableName === 'RECETAS'
-        ? buildRecetaRows(sectionRecordsRaw, database)
-      : sectionRecordsRaw
+  const sectionRecordsRaw = useMemo(
+    () => database[selectedTableName] ?? [],
+    [database, selectedTableName],
+  )
+  const sectionRecords = useMemo(() => {
+    if (selectedTableName === 'PROBETA') {
+      return [
+        ...buildProbetaRows(sectionRecordsRaw, database),
+        ...buildProbetaDraftRows(database.PROBETA_BORRADORES ?? []),
+      ]
+    }
+
+    if (selectedTableName === 'RECETAS') {
+      return buildRecetaRows(sectionRecordsRaw, database)
+    }
+
+    return sectionRecordsRaw
+  }, [database, sectionRecordsRaw, selectedTableName])
+  const sectionRecordsWithSourceIndexes = useMemo(
+    () => sectionRecords.map((record, sourceIndex) => ({ ...record, sourceIndex })),
+    [sectionRecords],
+  )
+  const searchFields = useMemo(
+    () => getSearchFieldOptions(selectedTableName, sectionRecordsWithSourceIndexes),
+    [selectedTableName, sectionRecordsWithSourceIndexes],
+  )
+  const visibleSectionRecords = useMemo(() => {
+    if (!selectedTableName) {
+      return []
+    }
+
+    return filterRecordRows({
+      records: sectionRecordsWithSourceIndexes,
+      fields: searchFields,
+      database,
+      query: searchQuery,
+      filters: searchFilters,
+    })
+  }, [database, searchFields, searchFilters, searchQuery, sectionRecordsWithSourceIndexes, selectedTableName])
   const probetaAverageThickness = useMemo(
     () =>
       draft.has_uncured_thickness
@@ -225,7 +258,9 @@ function App() {
     setIsLoadingDatabase(false)
     setDatabaseError('')
     setRecordListMode('active')
-    setSelectedTableName(SECTION_ORDER[0])
+    setSelectedTableName(null)
+    setSearchQuery('')
+    setSearchFilters([])
     setSelectedRecordIndex(null)
     setActiveProbetaDraftId(null)
     setDraft(createEmptyDraft(SECTION_ORDER[0], getTable(SECTION_ORDER[0])))
@@ -451,6 +486,8 @@ function App() {
 
   function selectTable(tableName) {
     setSelectedTableName(tableName)
+    setSearchQuery('')
+    setSearchFilters([])
     setRecordListMode('active')
     setSelectedRecordIndex(null)
     setActiveProbetaDraftId(null)
@@ -463,8 +500,23 @@ function App() {
     void refreshDatabase('active')
   }
 
+  function clearSearchTable() {
+    setSelectedTableName(null)
+    setSearchQuery('')
+    setSearchFilters([])
+    setRecordListMode('active')
+    setSelectedRecordIndex(null)
+    setActiveProbetaDraftId(null)
+    setDraft(createEmptyDraft(SECTION_ORDER[0], getTable(SECTION_ORDER[0])))
+    setFormMode(null)
+    setActiveProbetaStep(PROBETA_STEPS[0])
+    setActiveRecipeStepIndex(0)
+    setFormFieldErrors({})
+    setArchivedReferenceLabels({})
+  }
+
   function openCreateForm() {
-    if (recordListMode === 'archived') {
+    if (!selectedTableName || recordListMode === 'archived') {
       return
     }
 
@@ -2012,6 +2064,24 @@ function App() {
         isSigningOut={isSigningOut}
       />
 
+      <GlobalRecordSearch
+        sectionOrder={SECTION_ORDER}
+        selectedTableName={selectedTableName}
+        fields={searchFields}
+        database={database}
+        query={searchQuery}
+        filters={searchFilters}
+        onSelectTable={selectTable}
+        onClearTable={clearSearchTable}
+        onQueryChange={setSearchQuery}
+        onAddFilter={(filter) => setSearchFilters((currentFilters) => [...currentFilters, filter])}
+        onRemoveFilter={(filterId) =>
+          setSearchFilters((currentFilters) =>
+            currentFilters.filter((filter) => filter.id !== filterId),
+          )
+        }
+      />
+
       <main className="workspace">
         <SectionSidebar
           sectionOrder={SECTION_ORDER}
@@ -2021,14 +2091,22 @@ function App() {
         />
 
         <SectionTable
-          title={recordListMode === 'archived' ? `${getTableLabel(selectedTableName)} · Archivados` : getTableLabel(selectedTableName)}
+          title={
+            selectedTableName
+              ? recordListMode === 'archived'
+                ? `${getTableLabel(selectedTableName)} · Archivados`
+                : getTableLabel(selectedTableName)
+              : 'Búsqueda de registros'
+          }
           onCreate={openCreateForm}
-          canCreate={permissions.canCreate && recordListMode === 'active'}
-          hasRecords={sectionRecords.length > 0}
+          canCreate={Boolean(selectedTableName) && permissions.canCreate && recordListMode === 'active'}
+          hasRecords={visibleSectionRecords.length > 0}
           statusMessage={
-            isLoadingDatabase
-              ? 'Cargando datos desde Supabase...'
-              : databaseError || undefined
+            !selectedTableName
+              ? 'Escribe o selecciona un tipo de registro para empezar.'
+              : isLoadingDatabase
+                ? 'Cargando datos desde Supabase...'
+                : databaseError || undefined
           }
           headerActions={
             permissions.canViewArchived ? (
@@ -2045,7 +2123,7 @@ function App() {
         >
           {selectedTableName === 'PROBETA' ? (
             <ProbetaRecordsTable
-              records={sectionRecords}
+              records={visibleSectionRecords}
               onOpenRecord={openRecordForm}
               onDelete={() => {}}
               onRecordAction={requestRecordAction}
@@ -2084,7 +2162,7 @@ function App() {
                     ? [...recipeTableFields, { name: 'escalones', type: 'int4' }]
                     : simpleTableFields
                 }
-                records={sectionRecords}
+                records={visibleSectionRecords}
                 database={database}
                 onOpenRecord={openRecordForm}
                 onDelete={() => {}}

@@ -24,6 +24,13 @@ function getFilterDescription(filter, fields, database) {
     .join(' ')
 }
 
+function matchesTypeQuery(tableName, query) {
+  const normalizedLabel = normalizeSearchText(getTableLabel(tableName)).replace(/[^a-z0-9]/g, '')
+  const normalizedQuery = normalizeSearchText(query).replace(/[^a-z0-9]/g, '')
+
+  return normalizedLabel.includes(normalizedQuery) || normalizedQuery.includes(normalizedLabel)
+}
+
 function GlobalRecordSearch({
   sectionOrder,
   selectedTableName,
@@ -43,13 +50,10 @@ function GlobalRecordSearch({
   const [draftFieldName, setDraftFieldName] = useState('')
   const [draftOperator, setDraftOperator] = useState('')
   const [draftValue, setDraftValue] = useState('')
+  const [nextFilterId, setNextFilterId] = useState(0)
 
   const matchingTables = useMemo(() => {
-    const normalizedQuery = normalizeSearchText(typeQuery)
-
-    return sectionOrder.filter((tableName) =>
-      normalizeSearchText(getTableLabel(tableName)).includes(normalizedQuery),
-    )
+    return sectionOrder.filter((tableName) => matchesTypeQuery(tableName, typeQuery))
   }, [sectionOrder, typeQuery])
   const selectedField = fields.find((field) => field.name === draftFieldName)
   const operators = getOperatorsForSearchField(selectedField)
@@ -104,11 +108,12 @@ function GlobalRecordSearch({
     }
 
     onAddFilter({
-      id: `${selectedField.name}-${Date.now()}`,
+      id: `${selectedField.name}-${nextFilterId}`,
       fieldName: selectedField.name,
       operator: draftOperator,
       value: draftValue,
     })
+    setNextFilterId((currentId) => currentId + 1)
     resetFilterEditor()
   }
 

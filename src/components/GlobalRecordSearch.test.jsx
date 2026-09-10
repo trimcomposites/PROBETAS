@@ -32,7 +32,7 @@ describe('GlobalRecordSearch', () => {
     )
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Tipo de registro' }), {
-      target: { value: 'probet' },
+      target: { value: 'probetas' },
     })
     fireEvent.click(screen.getByRole('option', { name: 'Probeta' }))
 
