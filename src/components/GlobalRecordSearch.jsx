@@ -31,56 +31,73 @@ function matchesTypeQuery(tableName, query) {
   return normalizedLabel.includes(normalizedQuery) || normalizedQuery.includes(normalizedLabel)
 }
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="10.75" cy="10.75" r="5.75" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="m15.2 15.2 4 4" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
 function GlobalRecordSearch({
   sectionOrder,
-  selectedTableName,
+  draftSearch,
   fields,
+  fieldGroups,
   database,
-  query,
-  filters,
-  onSelectTable,
-  onClearTable,
-  onQueryChange,
-  onAddFilter,
-  onRemoveFilter,
+  onDraftChange,
+  onSubmit,
+  onClear,
 }) {
   const [typeQuery, setTypeQuery] = useState('')
   const [highlightedTypeIndex, setHighlightedTypeIndex] = useState(0)
   const [isTypeInputActive, setIsTypeInputActive] = useState(false)
-  const [isFilterEditorOpen, setIsFilterEditorOpen] = useState(false)
+  const [activeGroupId, setActiveGroupId] = useState(null)
   const [draftFieldName, setDraftFieldName] = useState('')
   const [draftOperator, setDraftOperator] = useState('')
   const [draftValue, setDraftValue] = useState('')
   const [nextFilterId, setNextFilterId] = useState(0)
 
-  const matchingTables = useMemo(() => {
-    return sectionOrder.filter((tableName) => matchesTypeQuery(tableName, typeQuery))
-  }, [sectionOrder, typeQuery])
+  const matchingTables = useMemo(
+    () => sectionOrder.filter((tableName) => matchesTypeQuery(tableName, typeQuery)),
+    [sectionOrder, typeQuery],
+  )
   const selectedField = fields.find((field) => field.name === draftFieldName)
   const operators = getOperatorsForSearchField(selectedField)
   const needsValue = selectedField?.kind !== 'pdf'
+
+  function resetFilterEditor() {
+    setDraftFieldName('')
+    setDraftOperator('')
+    setDraftValue('')
+  }
 
   function selectType(tableName) {
     setTypeQuery('')
     setHighlightedTypeIndex(0)
     setIsTypeInputActive(false)
-    onSelectTable(tableName)
+    resetFilterEditor()
+    onDraftChange({ tableName, query: '', filters: [] })
   }
 
   function handleTypeKeyDown(event) {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       setHighlightedTypeIndex((index) => Math.min(index + 1, matchingTables.length - 1))
+      return
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault()
       setHighlightedTypeIndex((index) => Math.max(index - 1, 0))
+      return
     }
 
     if (event.key === 'Enter' && matchingTables[highlightedTypeIndex]) {
       event.preventDefault()
       selectType(matchingTables[highlightedTypeIndex])
+      return
     }
 
     if (event.key === 'Escape') {
@@ -90,16 +107,10 @@ function GlobalRecordSearch({
     }
   }
 
-  function resetFilterEditor() {
-    setIsFilterEditorOpen(false)
-    setDraftFieldName('')
-    setDraftOperator('')
-    setDraftValue('')
-  }
-
   function handleFieldChange(event) {
     const fieldName = event.target.value
     const field = fields.find((item) => item.name === fieldName)
+
     setDraftFieldName(fieldName)
     setDraftOperator(getOperatorsForSearchField(field)[0]?.value ?? '')
     setDraftValue('')
@@ -110,75 +121,118 @@ function GlobalRecordSearch({
       return
     }
 
-    onAddFilter({
-      id: `${selectedField.name}-${nextFilterId}`,
-      fieldName: selectedField.name,
-      operator: draftOperator,
-      value: draftValue,
+    onDraftChange({
+      ...draftSearch,
+      filters: [
+        ...draftSearch.filters,
+        {
+          id: draftFieldName + '-' + nextFilterId,
+          fieldName: draftFieldName,
+          operator: draftOperator,
+          value: draftValue,
+        },
+      ],
     })
     setNextFilterId((currentId) => currentId + 1)
     resetFilterEditor()
   }
 
+  function toggleGroup(groupId) {
+    setActiveGroupId((currentGroupId) => {
+      const nextGroupId = currentGroupId === groupId ? null : groupId
+      if (nextGroupId !== currentGroupId) {
+        resetFilterEditor()
+      }
+      return nextGroupId
+    })
+  }
+
+  function removeFilter(filterId) {
+    onDraftChange({
+      ...draftSearch,
+      filters: draftSearch.filters.filter((filter) => filter.id !== filterId),
+    })
+  }
+
   return (
     <section className="global-record-search" aria-label="Búsqueda global de registros">
-      {selectedTableName ? (
-        <div className="global-record-search-active">
-          <div className="global-record-search-chips" aria-label="Filtros aplicados">
-            <span className="global-record-search-chip global-record-search-type-chip">
-              {getTableLabel(selectedTableName)}
-              <button
-                type="button"
-                aria-label={`Eliminar tipo ${getTableLabel(selectedTableName)}`}
-                onClick={onClearTable}
-              >
-                ×
-              </button>
-            </span>
-            {filters.map((filter) => {
-              const description = getFilterDescription(filter, fields, database)
-
-              return (
-                <span key={filter.id} className="global-record-search-chip">
-                  {description}
-                  <button
-                    type="button"
-                    aria-label={`Eliminar filtro: ${description}`}
-                    onClick={() => onRemoveFilter(filter.id)}
-                  >
-                    ×
-                  </button>
-                </span>
-              )
-            })}
-          </div>
-
-          <div className="global-record-search-controls">
-            <label className="global-record-search-text-control">
-              <span>Buscar en registros</span>
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => onQueryChange(event.target.value)}
-                placeholder="Escribe para buscar"
-              />
-            </label>
+      {draftSearch.tableName ? (
+        <>
+          <div className="global-record-search-bar">
             <button
               type="button"
-              className="ghost-button"
-              onClick={() => setIsFilterEditorOpen(true)}
+              className="global-record-search-type"
+              aria-label={'Quitar tipo ' + getTableLabel(draftSearch.tableName)}
+              onClick={onClear}
             >
-              Añadir filtro
+              <span>{getTableLabel(draftSearch.tableName)}</span>
+              <span aria-hidden="true">×</span>
+            </button>
+            <input
+              aria-label="Buscar en registros"
+              type="search"
+              value={draftSearch.query}
+              onChange={(event) => onDraftChange({ ...draftSearch, query: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  onSubmit()
+                }
+              }}
+              placeholder="Buscar texto"
+            />
+            <button
+              type="button"
+              className="global-record-search-submit"
+              aria-label="Buscar registros"
+              onClick={onSubmit}
+            >
+              <SearchIcon />
             </button>
           </div>
 
-          {isFilterEditorOpen ? (
-            <div className="global-record-search-filter-editor" onKeyDown={(event) => event.key === 'Escape' && resetFilterEditor()}>
+          <div className="global-record-search-groups" aria-label="Grupos de campos">
+            {fieldGroups.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                className={'global-record-search-group' + (activeGroupId === group.id ? ' active' : '')}
+                aria-expanded={activeGroupId === group.id}
+                onClick={() => toggleGroup(group.id)}
+              >
+                {group.label}
+              </button>
+            ))}
+          </div>
+
+          {draftSearch.filters.length ? (
+            <div className="global-record-search-chips" aria-label="Filtros preparados">
+              {draftSearch.filters.map((filter) => {
+                const description = getFilterDescription(filter, fields, database)
+
+                return (
+                  <span key={filter.id} className="global-record-search-chip">
+                    {description}
+                    <button
+                      type="button"
+                      aria-label={'Eliminar filtro: ' + description}
+                      onClick={() => removeFilter(filter.id)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                )
+              })}
+            </div>
+          ) : null}
+
+          {activeGroupId ? (
+            <div className="global-record-search-filter-editor" onKeyDown={(event) => event.key === 'Escape' && setActiveGroupId(null)}>
               <label>
                 <span>Campo</span>
                 <select aria-label="Campo" value={draftFieldName} onChange={handleFieldChange}>
                   <option value="">Selecciona una columna</option>
-                  {fields.map((field) => (
+                  {(fieldGroups.find((group) => group.id === activeGroupId)?.fields ?? []).map((field) => (
                     <option key={field.name} value={field.name}>
                       {field.label}
                     </option>
@@ -205,7 +259,7 @@ function GlobalRecordSearch({
                 <label>
                   <span>Valor de {selectedField.label}</span>
                   <select
-                    aria-label={`Valor de ${selectedField.label}`}
+                    aria-label={'Valor de ' + selectedField.label}
                     value={draftValue}
                     onChange={(event) => setDraftValue(event.target.value)}
                   >
@@ -221,7 +275,7 @@ function GlobalRecordSearch({
                 <label>
                   <span>Valor de {selectedField.label}</span>
                   <select
-                    aria-label={`Valor de ${selectedField.label}`}
+                    aria-label={'Valor de ' + selectedField.label}
                     value={draftValue}
                     onChange={(event) => setDraftValue(event.target.value)}
                   >
@@ -234,7 +288,7 @@ function GlobalRecordSearch({
                 <label>
                   <span>Valor de {selectedField.label}</span>
                   <input
-                    aria-label={`Valor de ${selectedField.label}`}
+                    aria-label={'Valor de ' + selectedField.label}
                     type={selectedField.kind === 'date' ? 'date' : selectedField.kind === 'number' ? 'number' : 'text'}
                     value={draftValue}
                     onChange={(event) => setDraftValue(event.target.value)}
@@ -256,7 +310,7 @@ function GlobalRecordSearch({
               </div>
             </div>
           ) : null}
-        </div>
+        </>
       ) : (
         <label className="global-record-search-type-control">
           <span>Tipo de registro</span>
@@ -273,7 +327,7 @@ function GlobalRecordSearch({
             onFocus={() => setIsTypeInputActive(true)}
             onBlur={() => setIsTypeInputActive(false)}
             onKeyDown={handleTypeKeyDown}
-            placeholder="Escribe Probetas, Recetas, Fibras..."
+            placeholder="Buscar registros…"
           />
           {isTypeInputActive && matchingTables.length ? (
             <div id="global-record-search-suggestions" className="global-record-search-suggestions" role="listbox">

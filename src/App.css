@@ -437,9 +437,9 @@
   box-shadow: var(--shadow);
 }
 
-.global-record-search-active,
-.global-record-search-controls,
 .global-record-search-chips,
+.global-record-search-bar,
+.global-record-search-groups,
 .global-record-search-filter-actions {
   display: flex;
   align-items: center;
@@ -447,12 +447,82 @@
   flex-wrap: wrap;
 }
 
-.global-record-search-active {
-  justify-content: space-between;
+.global-record-search-bar {
+  min-height: 44px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--input-bg);
+}
+
+.global-record-search-type,
+.global-record-search-submit,
+.global-record-search-group {
+  border: 0;
+  color: var(--text-strong);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.global-record-search-type {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-right: 1px solid var(--border);
+  background: var(--chip);
+}
+
+.global-record-search-type:hover,
+.global-record-search-group:hover,
+.global-record-search-group.active {
+  background: var(--chip-active);
+}
+
+.global-record-search-bar input {
+  min-width: 180px;
+  flex: 1;
+  align-self: stretch;
+  border: 0;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--text-strong);
+  font: inherit;
+}
+
+.global-record-search-submit {
+  align-self: stretch;
+  display: grid;
+  width: 46px;
+  place-items: center;
+  border-left: 1px solid var(--border);
+  background: transparent;
+}
+
+.global-record-search-submit:hover {
+  background: var(--chip-active);
+}
+
+.global-record-search-submit svg {
+  width: 20px;
+  height: 20px;
+}
+
+.global-record-search-groups {
+  margin-top: 12px;
+}
+
+.global-record-search-group {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: transparent;
+  font-size: 0.88rem;
 }
 
 .global-record-search-type-control,
-.global-record-search-text-control,
 .global-record-search-filter-editor label {
   display: grid;
   gap: 6px;
@@ -467,7 +537,6 @@
 }
 
 .global-record-search-type-control input,
-.global-record-search-text-control input,
 .global-record-search-filter-editor input,
 .global-record-search-filter-editor select {
   min-height: 42px;
@@ -484,7 +553,10 @@
 }
 
 .global-record-search-type-control input:focus,
-.global-record-search-text-control input:focus,
+.global-record-search-bar input:focus,
+.global-record-search-type:focus-visible,
+.global-record-search-submit:focus-visible,
+.global-record-search-group:focus-visible,
 .global-record-search-filter-editor input:focus,
 .global-record-search-filter-editor select:focus,
 .global-record-search-chip button:focus-visible,
@@ -534,10 +606,6 @@
   font-size: 0.88rem;
 }
 
-.global-record-search-type-chip {
-  border-color: var(--accent);
-}
-
 .global-record-search-chip button {
   width: 22px;
   height: 22px;
@@ -576,15 +644,14 @@
 }
 
 @media (max-width: 760px) {
-  .global-record-search-active,
-  .global-record-search-controls,
+  .global-record-search-bar,
   .global-record-search-filter-editor {
     align-items: stretch;
   }
 
-  .global-record-search-text-control,
   .global-record-search-type-control,
   .global-record-search-type-control input,
+  .global-record-search-bar input,
   .global-record-search-filter-editor label,
   .global-record-search-filter-actions {
     width: 100%;

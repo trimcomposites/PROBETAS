@@ -4,118 +4,103 @@ import GlobalRecordSearch from './GlobalRecordSearch'
 
 afterEach(cleanup)
 
-const recipeField = {
-  name: 'receta_id',
-  label: 'Receta',
-  kind: 'reference',
-  references: 'RECETAS.id',
+const resultsField = { name: 'largo_mm', label: 'Largo [mm]', kind: 'number' }
+
+function renderSearch(overrides = {}) {
+  const props = {
+    sectionOrder: ['PROBETA', 'RECETAS'],
+    draftSearch: { tableName: null, query: '', filters: [] },
+    fields: [],
+    fieldGroups: [],
+    database: {},
+    onDraftChange: vi.fn(),
+    onSubmit: vi.fn(),
+    onClear: vi.fn(),
+    ...overrides,
+  }
+
+  render(<GlobalRecordSearch {...props} />)
+
+  return props
 }
 
 describe('GlobalRecordSearch', () => {
-  test('mantiene ocultas las sugerencias hasta que se pulsa la barra', () => {
-    render(
-      <GlobalRecordSearch
-        sectionOrder={['PROBETA', 'RECETAS']}
-        selectedTableName={null}
-        fields={[]}
-        database={{}}
-        query=""
-        filters={[]}
-        onSelectTable={vi.fn()}
-        onClearTable={vi.fn()}
-        onQueryChange={vi.fn()}
-        onAddFilter={vi.fn()}
-        onRemoveFilter={vi.fn()}
-      />,
-    )
+  test('integra Probeta en la misma barra sin confirmar la búsqueda', () => {
+    const { onDraftChange, onSubmit } = renderSearch()
 
-    const typeInput = screen.getByRole('combobox', { name: 'Tipo de registro' })
-    expect(screen.queryByRole('option', { name: 'Probeta' })).toBeNull()
-
-    fireEvent.focus(typeInput)
-
-    expect(screen.getByRole('option', { name: 'Probeta' })).toBeTruthy()
-  })
-
-  test('permite escribir y seleccionar Probeta como único tipo', () => {
-    const onSelectTable = vi.fn()
-
-    render(
-      <GlobalRecordSearch
-        sectionOrder={['PROBETA', 'RECETAS']}
-        selectedTableName={null}
-        fields={[]}
-        database={{}}
-        query=""
-        filters={[]}
-        onSelectTable={onSelectTable}
-        onClearTable={vi.fn()}
-        onQueryChange={vi.fn()}
-        onAddFilter={vi.fn()}
-        onRemoveFilter={vi.fn()}
-      />,
-    )
-
-    const typeInput = screen.getByRole('combobox', { name: 'Tipo de registro' })
-    fireEvent.focus(typeInput)
-    fireEvent.change(typeInput, {
-      target: { value: 'probetas' },
-    })
+    const input = screen.getByRole('combobox', { name: 'Tipo de registro' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'probetas' } })
     fireEvent.click(screen.getByRole('option', { name: 'Probeta' }))
 
-    expect(onSelectTable).toHaveBeenCalledWith('PROBETA')
+    expect(onDraftChange).toHaveBeenCalledWith({ tableName: 'PROBETA', query: '', filters: [] })
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  test('aplica una relación elegida por su etiqueta visible', () => {
-    const onAddFilter = vi.fn()
-
-    render(
-      <GlobalRecordSearch
-        sectionOrder={['PROBETA']}
-        selectedTableName="PROBETA"
-        fields={[recipeField]}
-        database={{ RECETAS: [{ id: 11, nombre: 'Ciclo Époxi' }] }}
-        query=""
-        filters={[]}
-        onSelectTable={vi.fn()}
-        onClearTable={vi.fn()}
-        onQueryChange={vi.fn()}
-        onAddFilter={onAddFilter}
-        onRemoveFilter={vi.fn()}
-      />,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Añadir filtro' }))
-    fireEvent.change(screen.getByRole('combobox', { name: 'Campo' }), {
-      target: { value: 'receta_id' },
+  test('solo confirma el borrador al pulsar la lupa', () => {
+    const { onSubmit } = renderSearch({
+      draftSearch: { tableName: 'PROBETA', query: 'P-01', filters: [] },
     })
-    fireEvent.change(screen.getByRole('combobox', { name: 'Valor de Receta' }), {
-      target: { value: '11' },
+
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar registros' }))
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  test('añade una condición desde Resultados y permite retirarla', () => {
+    const onDraftChange = vi.fn()
+    renderSearch({
+      draftSearch: { tableName: 'PROBETA', query: '', filters: [] },
+      fields: [resultsField],
+      fieldGroups: [{ id: 'results', label: 'Resultados', fields: [resultsField] }],
+      onDraftChange,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resultados' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Campo' }), {
+      target: { value: 'largo_mm' },
+    })
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Valor de Largo [mm]' }), {
+      target: { value: '250' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtro' }))
 
-    expect(onAddFilter).toHaveBeenCalledWith(
-      expect.objectContaining({ fieldName: 'receta_id', operator: 'equals', value: '11' }),
-    )
+    expect(onDraftChange).toHaveBeenCalledWith({
+      tableName: 'PROBETA',
+      query: '',
+      filters: [{ id: 'largo_mm-0', fieldName: 'largo_mm', operator: 'equals', value: '250' }],
+    })
+
+    renderSearch({
+      draftSearch: {
+        tableName: 'PROBETA',
+        query: '',
+        filters: [{ id: 'largo_mm-0', fieldName: 'largo_mm', operator: 'equals', value: '250' }],
+      },
+      fields: [resultsField],
+      fieldGroups: [{ id: 'results', label: 'Resultados', fields: [resultsField] }],
+      onDraftChange,
+    })
+
+    expect(screen.getByRole('button', { name: 'Eliminar filtro: Largo [mm] es 250' })).toBeTruthy()
   })
 
-  test('muestra un botón accesible para retirar un filtro aplicado', () => {
-    render(
-      <GlobalRecordSearch
-        selectedTableName="PROBETA"
-        sectionOrder={['PROBETA']}
-        fields={[{ name: 'title', label: 'Titulo', kind: 'text' }]}
-        database={{}}
-        query=""
-        filters={[{ id: 'title', fieldName: 'title', operator: 'contains', value: 'A-01' }]}
-        onSelectTable={vi.fn()}
-        onClearTable={vi.fn()}
-        onQueryChange={vi.fn()}
-        onAddFilter={vi.fn()}
-        onRemoveFilter={vi.fn()}
-      />,
-    )
+  test('permite elegir el tipo resaltado con teclado y cerrar sugerencias', () => {
+    const { onDraftChange } = renderSearch()
 
-    expect(screen.getByRole('button', { name: /Eliminar filtro.*Titulo/i })).toBeTruthy()
+    const input = screen.getByRole('combobox', { name: 'Tipo de registro' })
+    fireEvent.focus(input)
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onDraftChange).toHaveBeenCalledWith({ tableName: 'RECETAS', query: '', filters: [] })
+
+    cleanup()
+    renderSearch()
+    const secondInput = screen.getByRole('combobox', { name: 'Tipo de registro' })
+    fireEvent.focus(secondInput)
+    fireEvent.keyDown(secondInput, { key: 'Escape' })
+
+    expect(screen.queryByRole('option', { name: 'Probeta' })).toBeNull()
   })
 })
