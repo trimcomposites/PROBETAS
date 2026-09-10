@@ -7,6 +7,7 @@ import BrandWordmark from './components/BrandWordmark'
 import FormModal from './components/FormModal'
 import PasswordRecoveryScreen from './components/PasswordRecoveryScreen'
 import PdfDropzone from './components/PdfDropzone'
+import PdfReviewCell from './components/PdfReviewCell'
 import ProbetaForm from './components/ProbetaForm'
 import ProbetaRecordsTable from './components/ProbetaRecordsTable'
 import RecordActionConfirmation from './components/RecordActionConfirmation'
@@ -193,7 +194,9 @@ function App() {
   )
   const probetaCalculatedDensity = useMemo(() => getCalculatedDensity(draft), [draft])
   const simpleFields = SIMPLE_SECTION_FIELDS[selectedTableName] ?? []
-  const simpleTableFields = SIMPLE_SECTION_TABLE_FIELDS[selectedTableName] ?? simpleFields
+  const simpleTableFields = (SIMPLE_SECTION_TABLE_FIELDS[selectedTableName] ?? simpleFields).filter(
+    (field) => !['fecha_revision_mds', 'fecha_revision_msdt'].includes(field.name),
+  )
   const recipeTableFields = simpleTableFields.map((field) =>
     field.name === 'temperatura_final_c'
       ? { name: 'pico_temperatura_c', type: 'float4' }
@@ -2142,31 +2145,16 @@ function App() {
                   }
 
                   const attachmentId = record[field.name]
-                  const fileMetadata =
-                    attachmentIndex[attachmentId] ?? getAttachmentMetadata(attachmentId)
-
-                  if (!attachmentId) {
-                    return 'Sin archivo'
-                  }
+                  const reviewDateField =
+                    field.name === 'pdf_mds_url' ? 'fecha_revision_mds' : 'fecha_revision_msdt'
 
                   return (
-                    <div className="file-cell">
-                      <span className="file-name">{fileMetadata?.name ?? 'PDF'}</span>
-                      <button
-                        type="button"
-                        className="ghost-button compact"
-                        onClick={() => handleAttachmentPreview(attachmentId)}
-                      >
-                        Ver
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-button compact"
-                        onClick={() => handleAttachmentDownload(attachmentId)}
-                      >
-                        Descargar
-                      </button>
-                    </div>
+                    <PdfReviewCell
+                      attachmentId={attachmentId}
+                      reviewDate={record[reviewDateField]}
+                      onPreview={handleAttachmentPreview}
+                      onDownload={handleAttachmentDownload}
+                    />
                   )
                 }}
               />
