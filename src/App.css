@@ -2482,6 +2482,11 @@ textarea {
   padding-right: 34px;
 }
 
+.ramp-hour-equivalent {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .input-clear-button {
   position: absolute;
   top: 50%;
