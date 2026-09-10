@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { buildProbetaDraftRows, buildRecetaRows } from './records'
+import { buildProbetaDraftRows, buildProbetaRows, buildRecetaRows } from './records'
 
 describe('buildProbetaDraftRows', () => {
   test('adapta un borrador parcial a una fila identificada de la tabla', () => {
@@ -22,6 +22,30 @@ describe('buildProbetaDraftRows', () => {
         density: 1.6,
       },
     ])
+  })
+})
+
+describe('buildProbetaRows', () => {
+  test('expone las dimensiones y medidas de resultados para buscar una probeta', () => {
+    const [row] = buildProbetaRows(
+      [{ id: 1, title: 'P-01', results_id: 7, receta_id: '' }],
+      {
+        RESULTS: [{ id: 7, largo_mm: 250, ancho_mm: 120, espesor_mm: 2.1, t1: 2, weight_g: 82 }],
+        RECETAS: [],
+        ACABADO: [],
+        PROBETA_CAPA: [],
+        CAPA: [],
+        'PRE-IMPREGNADO': [],
+      },
+    )
+
+    expect(row).toMatchObject({
+      largo_mm: 250,
+      ancho_mm: 120,
+      espesor_mm: 2.1,
+      t1: 2,
+      weight_g: 82,
+    })
   })
 })
 
