@@ -426,6 +426,171 @@
   margin-top: 24px;
 }
 
+.global-record-search {
+  position: relative;
+  z-index: 2;
+  margin-top: 24px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.global-record-search-active,
+.global-record-search-controls,
+.global-record-search-chips,
+.global-record-search-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.global-record-search-active {
+  justify-content: space-between;
+}
+
+.global-record-search-type-control,
+.global-record-search-text-control,
+.global-record-search-filter-editor label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.global-record-search-type-control {
+  position: relative;
+  max-width: 620px;
+}
+
+.global-record-search-type-control input,
+.global-record-search-text-control input,
+.global-record-search-filter-editor input,
+.global-record-search-filter-editor select {
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: var(--input-bg);
+  color: var(--text-strong);
+  font: inherit;
+}
+
+.global-record-search-type-control input {
+  min-width: min(100%, 460px);
+}
+
+.global-record-search-type-control input:focus,
+.global-record-search-text-control input:focus,
+.global-record-search-filter-editor input:focus,
+.global-record-search-filter-editor select:focus,
+.global-record-search-chip button:focus-visible,
+.global-record-search-suggestions button:focus-visible {
+  outline: 3px solid rgba(123, 224, 178, 0.34);
+  outline-offset: 2px;
+}
+
+.global-record-search-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(100%, 460px);
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.global-record-search-suggestions button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--text-strong);
+  text-align: left;
+  cursor: pointer;
+}
+
+.global-record-search-suggestions button.active,
+.global-record-search-suggestions button:hover {
+  background: var(--chip-active);
+}
+
+.global-record-search-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 8px 6px 12px;
+  background: var(--chip);
+  color: var(--text-strong);
+  font-size: 0.88rem;
+}
+
+.global-record-search-type-chip {
+  border-color: var(--accent);
+}
+
+.global-record-search-chip button {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.global-record-search-chip button:hover {
+  background: var(--button-subtle-hover);
+}
+
+.global-record-search-filter-editor {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.global-record-search-filter-actions {
+  padding-bottom: 1px;
+}
+
+.global-record-search-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .global-record-search-active,
+  .global-record-search-controls,
+  .global-record-search-filter-editor {
+    align-items: stretch;
+  }
+
+  .global-record-search-text-control,
+  .global-record-search-type-control,
+  .global-record-search-type-control input,
+  .global-record-search-filter-editor label,
+  .global-record-search-filter-actions {
+    width: 100%;
+  }
+}
+
 .table-list-panel,
 .schema-panel {
   padding: 24px;
