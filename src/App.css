@@ -448,6 +448,8 @@
 }
 
 .global-record-search-bar {
+  position: relative;
+  width: 100%;
   min-height: 50px;
   overflow: visible;
   border: 1px solid var(--border);
@@ -463,6 +465,14 @@
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+}
+
+.global-record-search-type-bar {
+  z-index: 30;
+}
+
+.global-record-search-type-bar:focus-within {
+  z-index: 40;
 }
 
 .global-record-search-type {
@@ -522,7 +532,6 @@
   font-size: 0.88rem;
 }
 
-.global-record-search-type-control,
 .global-record-search-filter-editor label {
   display: grid;
   gap: 6px;
@@ -531,17 +540,7 @@
   font-weight: 700;
 }
 
-.global-record-search-type-control {
-  position: relative;
-  z-index: 30;
-  max-width: 620px;
-}
-
-.global-record-search-type-control:focus-within {
-  z-index: 40;
-}
-
-.global-record-search-type-control input,
+.global-record-search-type-bar input,
 .global-record-search-filter-editor input,
 .global-record-search-filter-editor select {
   min-height: 42px;
@@ -553,11 +552,6 @@
   font: inherit;
 }
 
-.global-record-search-type-control input {
-  min-width: min(100%, 460px);
-}
-
-.global-record-search-type-control input:focus,
 .global-record-search-bar input:focus,
 .global-record-search-type:focus-visible,
 .global-record-search-submit:focus-visible,
@@ -583,6 +577,10 @@
   border-radius: 14px;
   background: var(--panel);
   box-shadow: var(--shadow);
+}
+
+.global-record-search-type-bar .global-record-search-suggestions {
+  width: 100%;
 }
 
 .global-record-search-suggestions button {
@@ -655,8 +653,6 @@
     align-items: stretch;
   }
 
-  .global-record-search-type-control,
-  .global-record-search-type-control input,
   .global-record-search-bar input,
   .global-record-search-filter-editor label,
   .global-record-search-filter-actions {

@@ -312,8 +312,7 @@ function GlobalRecordSearch({
           ) : null}
         </>
       ) : (
-        <label className="global-record-search-type-control">
-          <span>Tipo de registro</span>
+        <div className="global-record-search-bar global-record-search-type-bar">
           <input
             role="combobox"
             aria-label="Tipo de registro"
@@ -348,7 +347,7 @@ function GlobalRecordSearch({
           ) : isTypeInputActive ? (
             <p className="global-record-search-hint">No hay tipos de registro que coincidan.</p>
           ) : null}
-        </label>
+        </div>
       )}
     </section>
   )
