@@ -2,114 +2,106 @@
 
 ## Objetivo
 
-Incorporar un buscador global que permita localizar registros sin navegar por
-cada listado. La persona usuaria primero elige un único tipo de registro
-escribiendo su nombre, por ejemplo `probetas`, y después acota ese conjunto con
-texto libre y filtros por columna.
+Permitir localizar registros desde una única barra compacta. La persona elige un
+tipo de registro, añade texto y/o condiciones agrupadas y decide cuándo aplicar
+la búsqueda pulsando el icono de lupa. Preparar una búsqueda nunca cambia la
+tabla que se está consultando.
 
 ## Alcance
 
-El selector de tipo ofrece exclusivamente las secciones principales ya visibles
-en la barra lateral:
+La búsqueda cubre los registros ya cargados de probetas, preimpregnados, fibras
+de refuerzo, resinas, recetas, fabricantes y tricotados. No introduce consultas
+nuevas a Supabase, migraciones ni búsqueda en históricos.
 
-- `PROBETA`
-- `FIBRAS_REFUERZO`
-- `PRE-IMPREGNADO`
-- `RECETAS`
-- `FABRICANTE`
-- `PRE-IMPREGNADO_TYPE`
-- `RESINA_SYSTEM`
+La lista habitual se abre como hasta ahora. La barra siempre está disponible,
+pero sus sugerencias y controles solo se despliegan al recibir foco.
 
-La búsqueda no es transversal mientras no se haya escogido un tipo. Al
-seleccionarlo se muestran todos sus registros activos. No modifica el esquema
-de Supabase ni añade consultas: opera en el conjunto ya cargado por la
-aplicación. Los listados de archivados quedan fuera de esta primera versión.
+## Barra única
 
-## Interfaz y flujo
+La interfaz usa la paleta neutra y verde existente, sin azul. Todos los pasos
+ocurren dentro del mismo contenedor:
 
-Una barra fija sobre el área de trabajo contendrá el control de búsqueda y los
-filtros activos.
+1. En reposo muestra el texto `Buscar registros…`.
+2. Al enfocarla, propone tipos de registro y admite encontrarlos escribiendo
+   texto, incluidos plural, mayúsculas y acentos.
+3. Al elegir, por ejemplo, **Probetas**, ese nombre pasa a ser el primer
+   segmento de la propia barra; no se convierte en un chip ni aparece una
+   segunda barra. A su derecha quedan el texto de búsqueda y el botón de lupa.
+4. Debajo de esa primera línea, pero dentro del mismo borde, se muestran los
+   grupos de campos. Abrir un grupo permite añadir una condición de columna con
+   operador y valor. Las condiciones preparadas permanecen como chips dentro de
+   la barra y se eliminan con su `×`.
+5. Solo la lupa aplica el tipo, el texto y las condiciones preparados. Antes de
+   pulsarla, se conserva tanto la tabla seleccionada como sus resultados.
+6. Cambiar de sección con la navegación lateral descarta la búsqueda preparada y
+   la aplicada. Quitar el tipo de la barra también descarta ambas y mantiene la
+   lista normal de la sección actual.
 
-1. En el estado inicial, el campo permite escribir para encontrar un tipo de
-   registro. La lista de sugerencias se filtra sin distinguir mayúsculas,
-   minúsculas ni acentos.
-2. Al elegir una sugerencia se añade un chip, por ejemplo `Probetas ×`, se
-   sincroniza la sección lateral y se carga el listado activo correspondiente.
-   Solo puede existir un chip de tipo.
-3. Con un tipo elegido, el campo de texto busca en los valores legibles de sus
-   registros. El texto es un filtro adicional y puede limpiarse sin retirar el
-   tipo.
-4. El control **Añadir filtro** permite escoger una columna del tipo actual,
-   seleccionar un operador válido y aportar el valor. Cada condición aparece
-   como chip con una `×` para eliminarla.
-5. Al quitar el chip de tipo se eliminan el texto y todos los filtros de
-   columna, y el buscador vuelve a pedir un tipo.
+## Grupos de campos
 
-La tabla conserva todas sus acciones actuales —ver, editar, archivar o
-eliminar— sobre los resultados filtrados. Si no hay coincidencias, muestra un
-estado vacío que explica que se pueden corregir o retirar filtros, sin borrar
-los chips aplicados.
+Los grupos son una configuración explícita por tipo. Así los textos de la UI no
+dependen de inferir nombres técnicos de columnas y cada tipo muestra únicamente
+campos que puede buscar.
+
+Para **Probetas** los grupos iniciales son:
+
+- **Datos generales:** identificador, título, autor, fecha de revisión, receta
+  y referencia.
+- **Capas:** número de capas y materiales.
+- **Curado:** receta asociada.
+- **Resultados:** largo, ancho, espesor, medidas de espesor, peso, densidad,
+  acabado, observaciones y estado.
+
+Preimpregnados muestran Material, Composición y Documentación; fibras y resinas
+muestran Datos y Documentación; recetas muestran Datos, Temperatura y
+Escalones (incluido el número de escalones); fabricantes y tricotados muestran
+sus campos de Datos. Cuando un tipo dispone de documentos, el grupo de
+Documentación incluye sus PDF y, si existe en el registro, la fecha de revisión.
+
+## Datos y estado
+
+La aplicación mantiene dos estados distintos:
+
+- Un borrador con tipo, texto y condiciones que la barra está editando.
+- Una instantánea aplicada que se crea al pulsar la lupa.
+
+La tabla y los resultados se derivan exclusivamente de la instantánea aplicada.
+El componente de búsqueda solo modifica el borrador y emite una búsqueda
+completa al confirmar. La configuración de grupos se separa de los utilitarios
+puros que normalizan valores y filtran filas.
+
+Las filas derivadas de probetas se amplían para exponer los resultados de
+medición, incluidas las dimensiones, sin modificar los datos almacenados. Esto
+permite buscar por los valores que se presentan en pantalla.
 
 ## Semántica de filtrado
 
-Las condiciones se combinan con **Y**: un registro debe cumplir el texto libre
-y cada filtro de columna para aparecer.
+El texto libre y todas las condiciones se combinan con `AND`. Las comparaciones
+de texto ignoran mayúsculas, espacios sobrantes y acentos. Las relaciones se
+buscan mediante su etiqueta legible además de su identificador.
 
-La búsqueda de texto se normaliza eliminando acentos y comparando sin distinguir
-mayúsculas. Busca por los valores que ve la persona usuaria, incluidos los
-nombres resueltos de relaciones, no solo por los identificadores internos.
+Cada columna ofrece los operadores que correspondan a su dato: contiene e
+igual para texto y referencias; igual, mayor que y menor que para números y
+fechas; sí/no para booleanos; y con/sin archivo para PDFs. Un valor ausente no
+coincide y una condición incompleta no lanza errores ni se aplica.
 
-Los operadores disponibles dependen del tipo de dato:
+## Accesibilidad y adaptación
 
-| Tipo de campo | Operadores | Entrada |
-| --- | --- | --- |
-| Texto y URL | contiene | texto libre |
-| Relación | es | sugerencias por nombre del registro relacionado |
-| Número | es, mayor que, menor que | número |
-| Fecha | es, posterior a, anterior a | fecha |
-| Booleano | es | Sí o No |
-| PDF | tiene, no tiene | sin valor adicional |
-
-Los campos sin dato no cumplen una búsqueda de texto ni una condición de valor.
-Los campos calculados o presentados por los listados consolidados de probetas y
-recetas participarán con el mismo valor legible que se muestra en su tabla.
-
-## Arquitectura
-
-Se separará la lógica de la interfaz:
-
-- `GlobalRecordSearch` gestiona la barra, las sugerencias, la creación de
-  filtros y los chips.
-- Un módulo de utilidades de búsqueda normaliza texto, genera valores
-  buscables, resuelve relaciones mediante la base cargada y filtra registros.
-  Sus funciones serán puras y no dependerán de React.
-- `App` conserva el tipo seleccionado y el estado de filtros, obtiene las
-  filas consolidadas existentes y entrega a la tabla únicamente las filas que
-  pasan el filtro.
-
-El cambio de sección desde la barra lateral actualiza el filtro principal al
-tipo elegido y elimina texto y condiciones secundarios para no arrastrar
-criterios incompatibles entre entidades.
-
-## Errores y accesibilidad
-
-Los valores no válidos, incompletos o eliminados de una relación no rompen el
-filtrado: simplemente no producen coincidencia y el control mantiene un mensaje
-de ayuda claro. Los botones para retirar filtros tendrán una etiqueta accesible
-que identifique el filtro que eliminan. El teclado podrá elegir sugerencias y
-cerrar filtros sin depender del ratón.
+El selector de tipos funciona con flechas, Enter y Escape, y cada control tiene
+etiqueta accesible. La barra y sus grupos se adaptan a pantallas estrechas sin
+ocultar el botón de búsqueda ni impedir quitar condiciones.
 
 ## Pruebas
 
-- Selección de una sección escribiendo su nombre, también con diferencias de
-  acentos y capitalización.
-- Estado inicial sin resultados hasta seleccionar un único tipo y limpieza total
-  al retirar ese tipo.
-- Búsqueda de texto en campos directos y en etiquetas de relaciones como
-  `Receta`.
-- Operadores de texto, relación, número, fecha, booleano y presencia de PDF.
-- Combinación de varias condiciones con semántica Y y eliminación individual
-  mediante cada `×`.
-- Sin coincidencias, relaciones ausentes y valores incompletos sin errores.
-- La tabla filtrada conserva sus acciones y los registros correctos para
-  editar, archivar o eliminar.
+Las pruebas cubren:
+
+- Activación por foco, selección textual del tipo y su presencia integrada en
+  la misma barra.
+- Grupos por tipo, incluidos número de capas y dimensiones en Probetas.
+- Separación entre borrador y resultado: editar no altera la tabla; pulsar la
+  lupa sí lo hace.
+- Alta y eliminación de condiciones en el borrador y la aplicación posterior
+  con la lupa.
+- Normalización, relaciones y operadores de texto, referencia, número, fecha,
+  booleano y PDF.
+- Conservación del índice fuente para las acciones sobre un resultado filtrado.
