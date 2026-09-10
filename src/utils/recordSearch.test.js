@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   filterRecordRows,
+  getSearchFieldGroups,
   getOperatorsForSearchField,
   getReferenceOptions,
   getSearchFieldOptions,
@@ -18,6 +19,29 @@ const rows = [
 ]
 
 describe('recordSearch', () => {
+  test('agrupa los campos de Probeta y excluye los que no existan', () => {
+    const fields = [
+      { name: 'title', label: 'Titulo', kind: 'text' },
+      { name: 'capas', label: 'Capas', kind: 'number' },
+      { name: 'largo_mm', label: 'Largo [mm]', kind: 'number' },
+      { name: 'ancho_mm', label: 'Ancho [mm]', kind: 'number' },
+    ]
+
+    expect(getSearchFieldGroups('PROBETA', fields)).toEqual([
+      { id: 'general', label: 'Datos generales', fields: [fields[0]] },
+      { id: 'layers', label: 'Capas', fields: [fields[1]] },
+      { id: 'results', label: 'Resultados', fields: [fields[2], fields[3]] },
+    ])
+  })
+
+  test('clasifica los PDF presentes bajo Documentación', () => {
+    const pdf = { name: 'pdf_mds_url', label: 'PDF MDS', kind: 'pdf' }
+
+    expect(getSearchFieldGroups('RESINA_SYSTEM', [pdf])).toEqual([
+      { id: 'documentation', label: 'Documentación', fields: [pdf] },
+    ])
+  })
+
   test('normaliza mayúsculas y acentos para una búsqueda de texto', () => {
     expect(normalizeSearchText(' ÁLAMO ')).toBe('alamo')
   })
