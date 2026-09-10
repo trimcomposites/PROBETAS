@@ -80,6 +80,7 @@ import {
   getCalculatedDensity,
   getCalculatedThicknessFromMeasurements,
   getInputType,
+  getMissingPdfReviewDateFields,
   getRecordLabel,
   moveItem,
   parseFieldValue,
@@ -852,6 +853,10 @@ function App() {
       return
     }
 
+    if (selectedTableName !== 'PROBETA' && selectedTableName !== 'RECETAS') {
+      if (!validatePdfReviewDates(draft)) return
+    }
+
     let attachmentIdsToDelete = []
 
     if (
@@ -903,6 +908,24 @@ function App() {
     } catch (error) {
       showSafeError(error, 'No se pudo guardar el registro.', { markField: true })
     }
+  }
+
+  function validatePdfReviewDates(record) {
+    const missingDateFields = getMissingPdfReviewDateFields(record)
+
+    if (!missingDateFields.length) return true
+
+    setFormFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      ...Object.fromEntries(missingDateFields.map((fieldName) => [fieldName, true])),
+    }))
+    showFeedback(
+      'error',
+      missingDateFields.length === 1
+        ? 'Indica la fecha de revisión del PDF antes de guardar.'
+        : 'Indica las fechas de revisión de los PDFs antes de guardar.',
+    )
+    return false
   }
 
   async function handleSaveProbetaDraft() {
@@ -1174,6 +1197,8 @@ function App() {
       ...relatedRecordDraft,
       [keyField]: rawName,
     }
+
+    if (!validatePdfReviewDates(newRecord)) return
 
     try {
       const savedRecord = await saveSimpleRecord(tableName, newRecord)
@@ -1499,6 +1524,8 @@ function App() {
       ...preImpregnadoDraft,
       text_id: textId,
     }
+
+    if (!validatePdfReviewDates(newMaterial)) return
 
     try {
       const savedMaterial = await saveSimpleRecord('PRE-IMPREGNADO', newMaterial)
