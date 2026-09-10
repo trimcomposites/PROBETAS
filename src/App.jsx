@@ -86,7 +86,7 @@ import {
   parseFieldValue,
 } from './utils/records'
 import { getReferencedTableName, getTable } from './utils/schema'
-import { filterRecordRows, getSearchFieldOptions } from './utils/recordSearch'
+import { filterRecordRows, getSearchFieldGroups, getSearchFieldOptions } from './utils/recordSearch'
 import { getPermissionSet, normalizeRole, ROLE_LABELS } from './utils/permissions'
 import { updateRecipeStep } from './utils/recipeSteps'
 import { formatTemperatureInput } from './utils/temperatureUnits'
@@ -114,6 +114,18 @@ function getAuthErrorMessage(error, fallbackMessage) {
   return getUserError(error, fallbackMessage).message
 }
 
+function buildSearchRows(tableName, database) {
+  const records = database[tableName] ?? []
+  const rows =
+    tableName === 'PROBETA'
+      ? [...buildProbetaRows(records, database), ...buildProbetaDraftRows(database.PROBETA_BORRADORES ?? [])]
+      : tableName === 'RECETAS'
+        ? buildRecetaRows(records, database)
+        : records
+
+  return rows.map((record, sourceIndex) => ({ ...record, sourceIndex }))
+}
+
 function App() {
   const [theme, setTheme] = useState(getStoredTheme)
   const [session, setSession] = useState(null)
@@ -130,9 +142,8 @@ function App() {
   const [databaseError, setDatabaseError] = useState('')
   const [recordListMode, setRecordListMode] = useState('active')
   const [selectedTableName, setSelectedTableName] = useState(SECTION_ORDER[0])
-  const [searchTableName, setSearchTableName] = useState(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchFilters, setSearchFilters] = useState([])
+  const [draftSearch, setDraftSearch] = useState({ tableName: null, query: '', filters: [] })
+  const [appliedSearch, setAppliedSearch] = useState(null)
   const [selectedRecordIndex, setSelectedRecordIndex] = useState(null)
   const [activeProbetaDraftId, setActiveProbetaDraftId] = useState(null)
   const [draft, setDraft] = useState(() =>
@@ -196,23 +207,42 @@ function App() {
     () => sectionRecords.map((record, sourceIndex) => ({ ...record, sourceIndex })),
     [sectionRecords],
   )
+  const draftSearchRows = useMemo(
+    () => (draftSearch.tableName ? buildSearchRows(draftSearch.tableName, database) : []),
+    [database, draftSearch.tableName],
+  )
   const searchFields = useMemo(
-    () => getSearchFieldOptions(selectedTableName, sectionRecordsWithSourceIndexes),
-    [selectedTableName, sectionRecordsWithSourceIndexes],
+    () => getSearchFieldOptions(draftSearch.tableName, draftSearchRows),
+    [draftSearch.tableName, draftSearchRows],
+  )
+  const searchFieldGroups = useMemo(
+    () => getSearchFieldGroups(draftSearch.tableName, searchFields),
+    [draftSearch.tableName, searchFields],
+  )
+  const appliedSearchRows = useMemo(
+    () => (appliedSearch ? buildSearchRows(appliedSearch.tableName, database) : []),
+    [appliedSearch, database],
+  )
+  const appliedSearchFields = useMemo(
+    () =>
+      appliedSearch
+        ? getSearchFieldOptions(appliedSearch.tableName, appliedSearchRows)
+        : [],
+    [appliedSearch, appliedSearchRows],
   )
   const visibleSectionRecords = useMemo(() => {
-    if (!searchTableName) {
+    if (!appliedSearch) {
       return sectionRecordsWithSourceIndexes
     }
 
     return filterRecordRows({
-      records: sectionRecordsWithSourceIndexes,
-      fields: searchFields,
+      records: appliedSearchRows,
+      fields: appliedSearchFields,
       database,
-      query: searchQuery,
-      filters: searchFilters,
+      query: appliedSearch.query,
+      filters: appliedSearch.filters,
     })
-  }, [database, searchFields, searchFilters, searchQuery, searchTableName, sectionRecordsWithSourceIndexes])
+  }, [appliedSearch, appliedSearchFields, appliedSearchRows, database, sectionRecordsWithSourceIndexes])
   const probetaAverageThickness = useMemo(
     () =>
       draft.has_uncured_thickness
@@ -486,11 +516,12 @@ function App() {
       .catch(() => setAttachmentIndex({}))
   }, [session])
 
-  function selectTable(tableName, activateSearch = false) {
+  function selectTable(tableName, { preserveSearch = false } = {}) {
     setSelectedTableName(tableName)
-    setSearchTableName(activateSearch ? tableName : null)
-    setSearchQuery('')
-    setSearchFilters([])
+    if (!preserveSearch) {
+      setDraftSearch({ tableName: null, query: '', filters: [] })
+      setAppliedSearch(null)
+    }
     setRecordListMode('active')
     setSelectedRecordIndex(null)
     setActiveProbetaDraftId(null)
@@ -503,10 +534,24 @@ function App() {
     void refreshDatabase('active')
   }
 
-  function clearSearchTable() {
-    setSearchTableName(null)
-    setSearchQuery('')
-    setSearchFilters([])
+  function applySearch() {
+    if (!draftSearch.tableName) {
+      return
+    }
+
+    const snapshot = {
+      tableName: draftSearch.tableName,
+      query: draftSearch.query,
+      filters: draftSearch.filters.map((filter) => ({ ...filter })),
+    }
+
+    setAppliedSearch(snapshot)
+    selectTable(snapshot.tableName, { preserveSearch: true })
+  }
+
+  function clearSearch() {
+    setDraftSearch({ tableName: null, query: '', filters: [] })
+    setAppliedSearch(null)
   }
 
   function openCreateForm() {
@@ -2060,20 +2105,13 @@ function App() {
 
       <GlobalRecordSearch
         sectionOrder={SECTION_ORDER}
-        selectedTableName={searchTableName}
+        draftSearch={draftSearch}
         fields={searchFields}
+        fieldGroups={searchFieldGroups}
         database={database}
-        query={searchQuery}
-        filters={searchFilters}
-        onSelectTable={(tableName) => selectTable(tableName, true)}
-        onClearTable={clearSearchTable}
-        onQueryChange={setSearchQuery}
-        onAddFilter={(filter) => setSearchFilters((currentFilters) => [...currentFilters, filter])}
-        onRemoveFilter={(filterId) =>
-          setSearchFilters((currentFilters) =>
-            currentFilters.filter((filter) => filter.id !== filterId),
-          )
-        }
+        onDraftChange={setDraftSearch}
+        onSubmit={applySearch}
+        onClear={clearSearch}
       />
 
       <main className="workspace">
