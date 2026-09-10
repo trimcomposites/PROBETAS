@@ -1,337 +1,415 @@
-# Global Record Search Implementation Plan
+# Barra única de búsqueda global Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
 
-**Goal:** Let users choose one record type by writing its name, then narrow its active records with text and column filters.
+**Goal:** Reemplazar el buscador global actual por una sola barra con grupos de campos y una búsqueda que solo se aplica al pulsar la lupa.
 
-**Architecture:** A pure `recordSearch` utility builds searchable field metadata, resolves displayed relationship values, and applies filters to already loaded rows. `GlobalRecordSearch` owns the search-bar interaction, while `App` owns the selected section and controlled filter state, passing filtered rows to the existing tables.
+**Architecture:** recordSearch definirá de forma explícita los grupos visibles y seguirá proporcionando funciones puras de filtrado. GlobalRecordSearch controlará exclusivamente el borrador de interacción y emitirá una instantánea al confirmar; App conservará por separado el borrador y la búsqueda aplicada para derivar la tabla visible sin efectos durante la edición.
 
-**Tech Stack:** React 19, JavaScript modules, Vitest, React Testing Library, existing CSS custom properties.
+**Tech Stack:** React 19, JavaScript modules, Vitest, React Testing Library y CSS con las propiedades personalizadas existentes.
 
-**Spec:** `docs/superpowers/specs/2026-09-10-global-record-search-design.md`
+**Spec:** docs/superpowers/specs/2026-09-10-global-record-search-design.md
 
 ## Global Constraints
 
-- Offer only the entries in `SECTION_ORDER`; exactly one type may be selected.
-- Start with no type selected; selecting the sidebar is equivalent to selecting a type in the search bar.
-- Search locally in active, already loaded records; add no Supabase query or database migration.
-- Compare text without case or accent differences and combine all applied conditions with AND.
-- Preserve current row actions after filtering by retaining each row's source index.
-- Do not stage or alter the user-owned `.vite/` directory.
+- Buscar solo en los registros activos ya cargados; no añadir consultas a Supabase ni migraciones.
+- Usar la paleta neutra y verde existente, sin introducir azul para esta interfaz.
+- Un borrador no cambia la sección ni los resultados: la única confirmación es el botón con icono de lupa.
+- Normalizar texto sin distinguir mayúsculas, acentos ni espacios extremos; combinar texto y condiciones mediante AND.
+- Conservar sourceIndex en las filas filtradas para que editar, archivar y eliminar operen sobre el registro original.
+- No modificar ni añadir al área .vite/ que pertenece al usuario.
 
 ---
 
-### Task 1: Create the pure search domain and its tests
+### Task 1: Declarar los grupos buscables y los campos derivados
 
 **Files:**
-- Create: `src/utils/recordSearch.js`
-- Create: `src/utils/recordSearch.test.js`
+- Modify: src/utils/recordSearch.js
+- Modify: src/utils/recordSearch.test.js
 
 **Interfaces:**
-- Consumes: `getTable()` and `getReferencedTableName()` from `src/utils/schema.js`, `getRecordLabel()` from `src/utils/records.js`.
-- Produces: `normalizeSearchText(value)`, `getSearchFieldOptions(tableName, records)`, `getOperatorsForSearchField(field)`, `getReferenceOptions(field, database)`, `filterRecordRows({ records, fields, database, query, filters })`.
-- Filter shape: `{ id: string, fieldName: string, operator: 'contains' | 'equals' | 'greaterThan' | 'lessThan' | 'hasValue' | 'hasNoValue', value: string | boolean | number }`.
+- Consumes: getTable() y getReferencedTableName() de src/utils/schema.js, y getFieldLabel() de src/utils/labels.js.
+- Produces: getSearchFieldGroups(tableName, fields), que devuelve objetos { id, label, fields } sin grupos vacíos.
+- Extends: getSearchFieldOptions(tableName, records) con los valores consolidados de resultados de PROBETA.
 
-- [ ] **Step 1: Write failing utility tests**
+- [ ] **Step 1: Escribir las pruebas que fallen para los grupos y dimensiones**
 
-Create `src/utils/recordSearch.test.js` with representative records and assert text normalization, relationship matching, typed comparisons, PDF presence, AND semantics, and calculated row fields:
+Añadir a src/utils/recordSearch.test.js estos casos; verifican la configuración sin depender del orden de un esquema externo:
 
-```js
-import { describe, expect, test } from 'vitest'
-import {
-  filterRecordRows,
-  getOperatorsForSearchField,
-  getReferenceOptions,
-  getSearchFieldOptions,
-  normalizeSearchText,
-} from './recordSearch'
+~~~js
+import { getSearchFieldGroups } from './recordSearch'
 
-const database = {
-  RECETAS: [{ id: 11, nombre: 'Ciclo Époxi' }],
-  'PRE-IMPREGNADO': [],
-}
+test('agrupa los campos de Probeta y excluye los que no existan', () => {
+  const fields = [
+    { name: 'title', label: 'Titulo', kind: 'text' },
+    { name: 'capas', label: 'Capas', kind: 'number' },
+    { name: 'largo_mm', label: 'Largo [mm]', kind: 'number' },
+    { name: 'ancho_mm', label: 'Ancho [mm]', kind: 'number' },
+  ]
 
-const rows = [
-  { id: 1, title: 'Probeta Álamo', receta_id: 11, density: 1.58, pdf_mds_url: 'file-1' },
-  { id: 2, title: 'Probeta control', receta_id: '', density: 1.72, pdf_mds_url: '' },
-]
-
-describe('recordSearch', () => {
-  test('normaliza mayúsculas y acentos', () => {
-    expect(normalizeSearchText(' ÁLAMO ')).toBe('alamo')
-  })
-
-  test('busca texto y nombres de relaciones visibles', () => {
-    const fields = getSearchFieldOptions('PROBETA', rows)
-    expect(filterRecordRows({ records: rows, fields, database, query: 'epoxi', filters: [] })).toEqual([rows[0]])
-  })
-
-  test('combina filtros numéricos y de PDF con Y', () => {
-    const fields = getSearchFieldOptions('PROBETA', rows)
-    expect(
-      filterRecordRows({
-        records: rows,
-        fields,
-        database,
-        query: '',
-        filters: [
-          { id: 'density', fieldName: 'density', operator: 'greaterThan', value: '1.6' },
-          { id: 'pdf', fieldName: 'pdf_mds_url', operator: 'hasNoValue', value: '' },
-        ],
-      }),
-    ).toEqual([rows[1]])
-  })
-
-  test('expone operadores y opciones para relaciones', () => {
-    const fields = getSearchFieldOptions('PROBETA', rows)
-    const recipe = fields.find((field) => field.name === 'receta_id')
-    expect(getOperatorsForSearchField(recipe).map((operator) => operator.value)).toEqual(['equals'])
-    expect(getReferenceOptions(recipe, database)).toEqual([{ value: '11', label: 'Ciclo Époxi' }])
-  })
+  expect(getSearchFieldGroups('PROBETA', fields)).toEqual([
+    { id: 'general', label: 'Datos generales', fields: [fields[0]] },
+    { id: 'layers', label: 'Capas', fields: [fields[1]] },
+    { id: 'results', label: 'Resultados', fields: [fields[2], fields[3]] },
+  ])
 })
-```
 
-- [ ] **Step 2: Run the focused test to verify it fails**
+test('clasifica los PDF presentes bajo Documentación', () => {
+  const pdf = { name: 'pdf_mds_url', label: 'PDF MDS', kind: 'pdf' }
+  expect(getSearchFieldGroups('RESINA_SYSTEM', [pdf])).toEqual([
+    { id: 'documentation', label: 'Documentación', fields: [pdf] },
+  ])
+})
+~~~
 
-Run: `npm test -- src/utils/recordSearch.test.js`
+- [ ] **Step 2: Ejecutar las pruebas focalizadas y confirmar que fallan**
 
-Expected: FAIL because `./recordSearch` does not exist.
+Run: npm test -- src/utils/recordSearch.test.js
 
-- [ ] **Step 3: Implement field discovery and filtering**
+Expected: FAIL porque getSearchFieldGroups todavía no está exportada.
 
-Create `src/utils/recordSearch.js` with these rules:
+- [ ] **Step 3: Implementar la configuración de grupos**
 
-```js
-export function normalizeSearchText(value) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLocaleLowerCase('es')
+En src/utils/recordSearch.js, exportar SEARCH_FIELD_GROUPS. Usar esta configuración, preservando ids y orden:
+
+~~~js
+export const SEARCH_FIELD_GROUPS = {
+  PROBETA: [
+    { id: 'general', label: 'Datos generales', fieldNames: ['title', 'author', 'reviewed', 'receta_id', 'referencia'] },
+    { id: 'layers', label: 'Capas', fieldNames: ['capas', 'materiales'] },
+    { id: 'curing', label: 'Curado', fieldNames: ['receta'] },
+    { id: 'results', label: 'Resultados', fieldNames: ['largo_mm', 'ancho_mm', 'espesor_mm', 'espesor', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 'has_uncured_thickness', 'espesor_sin_curado', 'uncured_t1', 'uncured_t2', 'uncured_t3', 'uncured_t4', 'uncured_t5', 'uncured_t6', 'uncured_t7', 'uncured_t8', 'weight_g', 'density', 'acabado_alias', 'anotaciones'] },
+  ],
+  'PRE-IMPREGNADO': [
+    { id: 'material', label: 'Material', fieldNames: ['text_id', 'alias', 'type_id', 'fabricante_id', 'espesor_curado', 'espesor_sin_curar'] },
+    { id: 'composition', label: 'Composición', fieldNames: ['resina_system_id', 'resina_volume', 'fibra_refuerzo_id', 'fibra_refuerzo2_id'] },
+    { id: 'documentation', label: 'Documentación', fieldNames: ['pdf_mds_url', 'pdf_msdt_url', 'fecha_revision_mds', 'fecha_revision_msdt'] },
+  ],
+  FIBRAS_REFUERZO: [
+    { id: 'data', label: 'Datos', fieldNames: ['alias'] },
+    { id: 'documentation', label: 'Documentación', fieldNames: ['pdf_mds_url', 'fecha_revision_mds'] },
+  ],
+  RESINA_SYSTEM: [
+    { id: 'data', label: 'Datos', fieldNames: ['alias'] },
+    { id: 'documentation', label: 'Documentación', fieldNames: ['pdf_mds_url', 'pdf_msdt_url', 'fecha_revision_mds', 'fecha_revision_msdt'] },
+  ],
+  RECETAS: [
+    { id: 'data', label: 'Datos', fieldNames: ['nombre', 'descripcion'] },
+    { id: 'temperature', label: 'Temperatura', fieldNames: ['temperatura_inicial_c', 'temperatura_final_c', 'pico_temperatura_c'] },
+    { id: 'steps', label: 'Escalones', fieldNames: ['escalones'] },
+  ],
+  FABRICANTE: [{ id: 'data', label: 'Datos', fieldNames: ['alias'] }],
+  'PRE-IMPREGNADO_TYPE': [{ id: 'data', label: 'Datos', fieldNames: ['alias'] }],
 }
+~~~
 
-export function filterRecordRows({ records, fields, database, query, filters }) {
-  const normalizedQuery = normalizeSearchText(query)
-  return records.filter((record) => {
-    const matchesQuery = !normalizedQuery || fields.some((field) =>
-      normalizeSearchText(getSearchDisplayValue(record, field, database)).includes(normalizedQuery),
-    )
-    return matchesQuery && filters.every((filter) => matchesSearchFilter(record, filter, fields, database))
-  })
+Implementar la función con Map y filtrado de campos inexistentes:
+
+~~~js
+export function getSearchFieldGroups(tableName, fields) {
+  const fieldsByName = new Map(fields.map((field) => [field.name, field]))
+  return (SEARCH_FIELD_GROUPS[tableName] ?? [])
+    .map((group) => ({
+      id: group.id,
+      label: group.label,
+      fields: group.fieldNames.map((name) => fieldsByName.get(name)).filter(Boolean),
+    }))
+    .filter((group) => group.fields.length > 0)
 }
-```
+~~~
 
-Build `getSearchFieldOptions()` from `getTable(tableName).fields`, excluding only internal keys (`id`, `created_at`, `updated_at`, `archived_at`, `archived_by`). Add only these row keys not present in the schema, with the declared kind, so consolidated lists remain fully searchable without exposing implementation metadata:
+Extender DERIVED_SEARCH_FIELDS.PROBETA con los campos de Resultados que no están en el esquema de PROBETA: dimensiones, espesores y medidas son number; has_uncured_thickness es boolean; receta, materiales, acabado_alias y anotaciones son text. Excluir sourceIndex, isDraft y draftPayload.
 
-```js
-const DERIVED_SEARCH_FIELDS = {
-  PROBETA: {
-    receta: 'text',
-    capas: 'number',
-    materiales: 'text',
-    espesor: 'number',
-    weight_g: 'number',
-    density: 'number',
-    acabado_alias: 'text',
-    anotaciones: 'text',
-    status: 'text',
-  },
-  RECETAS: {
-    pico_temperatura_c: 'number',
-    escalones: 'number',
-  },
-}
-```
+- [ ] **Step 4: Ejecutar las pruebas focalizadas y confirmar que pasan**
 
-Infer `pdf`, `reference`, `boolean`, `number`, `date`, and `text` kinds from schema metadata and field names; a schema field named `fecha_revision_*` is `date`, and any `pdf_*_url` field is `pdf`. Resolve a reference's comparable value to its label with `getRecordLabel()`, and use the raw id only for the `equals` comparison. Treat `null`, `undefined`, and blank strings as absent. Return no match instead of throwing for a missing referenced record or invalid numeric/date value.
-
-- [ ] **Step 4: Run the focused utility test to verify it passes**
-
-Run: `npm test -- src/utils/recordSearch.test.js`
+Run: npm test -- src/utils/recordSearch.test.js
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the search domain**
+- [ ] **Step 5: Crear el commit de la configuración buscable**
 
-```bash
+~~~bash
 git add src/utils/recordSearch.js src/utils/recordSearch.test.js
-git commit -m "feat: add record search filters"
-```
+git commit -m "feat: group record search fields"
+~~~
 
-### Task 2: Build the controlled global search bar
+### Task 2: Exponer todos los resultados de Probeta a la búsqueda
 
 **Files:**
-- Create: `src/components/GlobalRecordSearch.jsx`
-- Create: `src/components/GlobalRecordSearch.test.jsx`
-- Modify: `src/App.css` near `.workspace` and responsive rules
+- Modify: src/utils/records.js
+- Modify: src/utils/records.test.js
 
 **Interfaces:**
-- Consumes: `SECTION_ORDER`, `getTableLabel()`, `getFieldLabel()`, and the Task 1 field/operator/reference helpers.
-- Produces: `GlobalRecordSearch` with controlled props `{ sectionOrder, selectedTableName, fields, database, query, filters, onSelectTable, onClearTable, onQueryChange, onAddFilter, onRemoveFilter }`.
-- `onAddFilter` receives a complete filter shape from Task 1. `onSelectTable(tableName)` is called by either a type suggestion or the parent-controlled sidebar selection.
+- Consumes: buildProbetaDraftFromRecord(record, database) y las listas RESULTS, RECETAS, ACABADO y PRE-IMPREGNADO.
+- Produces: buildProbetaRows(records, database) con las propiedades de Resultados de Task 1, sin mutar los registros almacenados.
 
-- [ ] **Step 1: Write failing interaction tests**
+- [ ] **Step 1: Escribir una prueba que falle para dimensiones consolidadas**
 
-Create `src/components/GlobalRecordSearch.test.jsx` with a controlled harness and cover the type autocomplete, chip removal, a reference filter, and accessibility labels:
+Importar buildProbetaRows en src/utils/records.test.js y añadir:
 
-```jsx
-test('permite escribir y seleccionar Probetas como único tipo', () => {
-  const onSelectTable = vi.fn()
-  render(<GlobalRecordSearch sectionOrder={['PROBETA', 'RECETAS']} selectedTableName={null} fields={[]} database={{}} query="" filters={[]} onSelectTable={onSelectTable} onClearTable={vi.fn()} onQueryChange={vi.fn()} onAddFilter={vi.fn()} onRemoveFilter={vi.fn()} />)
+~~~js
+test('expone las dimensiones y medidas de resultados para buscar una probeta', () => {
+  const [row] = buildProbetaRows(
+    [{ id: 1, title: 'P-01', results_id: 7, receta_id: '' }],
+    {
+      RESULTS: [{ id: 7, largo_mm: 250, ancho_mm: 120, espesor_mm: 2.1, t1: 2, weight_g: 82 }],
+      RECETAS: [],
+      ACABADO: [],
+      PROBETA_CAPA: [],
+      CAPA: [],
+      'PRE-IMPREGNADO': [],
+    },
+  )
 
-  fireEvent.change(screen.getByRole('combobox', { name: 'Tipo de registro' }), { target: { value: 'probet' } })
+  expect(row).toMatchObject({
+    largo_mm: 250,
+    ancho_mm: 120,
+    espesor_mm: 2.1,
+    t1: 2,
+    weight_g: 82,
+  })
+})
+~~~
+
+- [ ] **Step 2: Ejecutar la prueba focalizada y confirmar que falla**
+
+Run: npm test -- src/utils/records.test.js
+
+Expected: FAIL porque la fila consolidada no contiene todavía largo_mm, ancho_mm, espesor_mm ni t1.
+
+- [ ] **Step 3: Copiar resultados del borrador consolidado a la fila**
+
+En buildProbetaRows(), después de materiales, añadir largo_mm, ancho_mm, espesor_mm, espesor, t1 a t8, has_uncured_thickness, espesor_sin_curado, uncured_t1 a uncured_t8, weight_g, density, acabado_alias y anotaciones desde draft. Conservar los nombres ya existentes y su valor mostrado actualmente.
+
+- [ ] **Step 4: Ejecutar las pruebas de filas y confirmar que pasan**
+
+Run: npm test -- src/utils/records.test.js
+
+Expected: PASS.
+
+- [ ] **Step 5: Crear el commit de resultados buscables**
+
+~~~bash
+git add src/utils/records.js src/utils/records.test.js
+git commit -m "feat: expose probeta result search values"
+~~~
+
+### Task 3: Convertir la interfaz en una barra integrada con grupos
+
+**Files:**
+- Modify: src/components/GlobalRecordSearch.jsx
+- Modify: src/components/GlobalRecordSearch.test.jsx
+- Modify: src/App.css
+
+**Interfaces:**
+- Consumes: getSearchFieldGroups(), getOperatorsForSearchField(), getReferenceOptions(), normalizeSearchText(), getTableLabel() y getFieldLabel().
+- Consumes props: { sectionOrder, draftSearch, fields, fieldGroups, database, onDraftChange, onSubmit, onClear }.
+- draftSearch tiene forma { tableName, query, filters }.
+- Produces: onDraftChange(nextDraft) en cada edición y onSubmit() solo desde la lupa o el equivalente de teclado.
+
+- [ ] **Step 1: Escribir pruebas de interacción que fallen**
+
+Reemplazar los casos de src/components/GlobalRecordSearch.test.jsx por pruebas de la nueva API. Incluir estas dos:
+
+~~~jsx
+test('integra Probeta en la misma barra sin confirmar la búsqueda', () => {
+  const onDraftChange = vi.fn()
+  render(
+    <GlobalRecordSearch
+      sectionOrder={['PROBETA']}
+      draftSearch={{ tableName: null, query: '', filters: [] }}
+      fields={[]}
+      fieldGroups={[]}
+      database={{}}
+      onDraftChange={onDraftChange}
+      onSubmit={vi.fn()}
+      onClear={vi.fn()}
+    />,
+  )
+
+  const input = screen.getByRole('combobox', { name: 'Tipo de registro' })
+  fireEvent.focus(input)
+  fireEvent.change(input, { target: { value: 'probetas' } })
   fireEvent.click(screen.getByRole('option', { name: 'Probeta' }))
-  expect(onSelectTable).toHaveBeenCalledWith('PROBETA')
+
+  expect(onDraftChange).toHaveBeenCalledWith({ tableName: 'PROBETA', query: '', filters: [] })
 })
 
-test('muestra un botón accesible para retirar un filtro aplicado', () => {
-  render(<GlobalRecordSearch selectedTableName="PROBETA" sectionOrder={['PROBETA']} fields={[{ name: 'title', label: 'Titulo', kind: 'text' }]} database={{}} query="" filters={[{ id: 'title', fieldName: 'title', operator: 'contains', value: 'A-01' }]} onSelectTable={vi.fn()} onClearTable={vi.fn()} onQueryChange={vi.fn()} onAddFilter={vi.fn()} onRemoveFilter={vi.fn()} />)
+test('solo confirma el borrador al pulsar la lupa', () => {
+  const onSubmit = vi.fn()
+  render(
+    <GlobalRecordSearch
+      sectionOrder={['PROBETA']}
+      draftSearch={{ tableName: 'PROBETA', query: 'P-01', filters: [] }}
+      fields={[]}
+      fieldGroups={[]}
+      database={{}}
+      onDraftChange={vi.fn()}
+      onSubmit={onSubmit}
+      onClear={vi.fn()}
+    />,
+  )
 
-  expect(screen.getByRole('button', { name: /Eliminar filtro.*Titulo/i })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Buscar registros' }))
+  expect(onSubmit).toHaveBeenCalledTimes(1)
 })
-```
+~~~
 
-- [ ] **Step 2: Run the component test to verify it fails**
+Añadir un caso que abra Resultados, elija largo_mm, rellene 250, cree la condición y vea un botón accesible Eliminar filtro: Largo [mm] mayor que 250. Añadir otro que compruebe Escape para cerrar sugerencias y ArrowDown + Enter para escoger el tipo resaltado.
 
-Run: `npm test -- src/components/GlobalRecordSearch.test.jsx`
+- [ ] **Step 2: Ejecutar la prueba del componente y confirmar que falla**
 
-Expected: FAIL because `./GlobalRecordSearch` does not exist.
+Run: npm test -- src/components/GlobalRecordSearch.test.jsx
 
-- [ ] **Step 3: Implement the accessible search UI**
+Expected: FAIL porque el componente conserva la API de chips y dos controles, sin botón de lupa.
 
-Create the component with two explicit states:
+- [ ] **Step 3: Reescribir el componente con un único contenedor**
 
-```jsx
-{selectedTableName ? (
-  <>
-    <button type="button" aria-label={`Eliminar tipo ${getTableLabel(selectedTableName)}`} onClick={onClearTable}>
-      {getTableLabel(selectedTableName)} ×
-    </button>
-    <input aria-label="Buscar en registros" value={query} onChange={(event) => onQueryChange(event.target.value)} />
-    <button type="button" onClick={() => setIsFilterEditorOpen(true)}>Añadir filtro</button>
-  </>
-) : (
-  <input role="combobox" aria-label="Tipo de registro" /* show matching SECTION_ORDER options */ />
-)}
-```
+Mantener como estado local solo sugerencias, grupo abierto, editor de condición, índice resaltado e id incremental. En reposo usar el combobox con placeholder Buscar registros…. Al seleccionar, llamar a onDraftChange({ tableName, query: '', filters: [] }) y nunca a onSubmit.
 
-Keep the in-progress filter editor local to the component. It must choose a field first, then show only the operators returned by `getOperatorsForSearchField()`. For reference fields, offer `getReferenceOptions()` labels; for boolean fields, `Sí` and `No`; for PDF fields, no value control. Disable the apply button until a value is supplied when that operator requires one. Render applied filters as chips and give each removal button the form `aria-label="Eliminar filtro: <descripción>"`. Support ArrowDown/ArrowUp and Enter for type suggestions, and Escape to close either suggestion/editor surface.
+Con tipo seleccionado, renderizar dentro de .global-record-search una primera línea compuesta por el segmento de tipo, la entrada de texto y el botón de lupa:
 
-Add scoped `.global-record-search*` CSS above `.workspace`: a panel layout with wrapping chips, a compact filter editor, visible focus states, and a one-column mobile layout without changing existing table styles.
+~~~jsx
+<div className="global-record-search-bar">
+  <button
+    type="button"
+    className="global-record-search-type"
+    aria-label={'Quitar tipo ' + getTableLabel(draftSearch.tableName)}
+    onClick={onClear}
+  >
+    {getTableLabel(draftSearch.tableName)} ×
+  </button>
+  <input
+    aria-label="Buscar en registros"
+    type="search"
+    value={draftSearch.query}
+    onChange={(event) => onDraftChange({ ...draftSearch, query: event.target.value })}
+  />
+  <button type="button" aria-label="Buscar registros" onClick={onSubmit}>
+    <svg viewBox="0 0 24 24" aria-hidden="true">...</svg>
+  </button>
+</div>
+~~~
 
-- [ ] **Step 4: Run the focused component test to verify it passes**
+Tras esa línea, aún dentro del mismo borde, renderizar botones de fieldGroups. El grupo activo abre un select Campo limitado a group.fields, sus operadores y el valor adecuado: select con getReferenceOptions para relaciones; Sí/No para booleanos; date para fechas; number para números; texto para texto; sin valor para PDF. Deshabilitar aplicar si falta campo, operador o valor requerido. Añadir filtros al borrador con id fieldName + '-' + nextFilterId y mostrar chips dentro de la misma barra. Las x de filtros llaman onDraftChange con el filtro eliminado; la x del tipo llama onClear.
 
-Run: `npm test -- src/components/GlobalRecordSearch.test.jsx`
+Mantener sugerencias solo mientras el combobox tenga foco, comparación sin plural/acento, y controles ArrowDown, ArrowUp, Enter y Escape.
+
+- [ ] **Step 4: Sustituir estilos de panel por estilos de barra única**
+
+En src/App.css reemplazar los selectores actuales del buscador por global-record-search-bar, global-record-search-type, global-record-search-groups, global-record-search-group, global-record-search-chips y global-record-search-filter-editor. Mantener borde, panel, sombra y foco verde rgba(123, 224, 178, 0.34). No usar azul ni el chip separado de tipo. En el media query de 760px permitir que entrada, tipo, lupa, grupos y editor se envuelvan a una columna sin ocultar la lupa.
+
+- [ ] **Step 5: Ejecutar las pruebas del componente y confirmar que pasan**
+
+Run: npm test -- src/components/GlobalRecordSearch.test.jsx
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the search bar**
+- [ ] **Step 6: Crear el commit de barra integrada**
 
-```bash
+~~~bash
 git add src/components/GlobalRecordSearch.jsx src/components/GlobalRecordSearch.test.jsx src/App.css
-git commit -m "feat: add global record search bar"
-```
+git commit -m "feat: unify global record search bar"
+~~~
 
-### Task 3: Connect search state, filtered rows, and safe row actions
+### Task 4: Aplicar instantáneas de búsqueda desde App
 
 **Files:**
-- Modify: `src/App.jsx: imports, workspace state, derived records, selectTable(), resetWorkspaceState(), main render`
-- Modify: `src/components/SimpleRecordsTable.jsx: record callback index handling`
-- Modify: `src/components/ProbetaRecordsTable.jsx: record callback index handling`
-- Modify: `src/components/SimpleRecordsTable.test.jsx`
-- Modify: `src/components/ProbetaRecordsTable.test.jsx`
+- Modify: src/App.jsx
+- Modify: src/components/SimpleRecordsTable.test.jsx
+- Modify: src/components/ProbetaRecordsTable.test.jsx
 
 **Interfaces:**
-- Consumes: `GlobalRecordSearch` from Task 2 and `filterRecordRows()`/`getSearchFieldOptions()` from Task 1.
-- Produces: `visibleSectionRecords`, whose rows retain `sourceIndex`, and a selected type shared by the sidebar and global search chip.
-- Tables consume `record.sourceIndex ?? index` for all callbacks and pending checks, preserving the parent API of numeric source indexes.
+- Consumes: GlobalRecordSearch, getSearchFieldOptions, getSearchFieldGroups y filterRecordRows.
+- Produces: draftSearch y appliedSearch; este último es null o una copia de { tableName, query, filters }.
+- Existing tables reciben sourceIndex y sus callbacks usan record.sourceIndex ?? visibleIndex.
 
-- [ ] **Step 1: Write failing regression tests for filtered action indexes**
+- [ ] **Step 1: Proteger los índices fuente antes de reconectar App**
 
-Add one test to each table test file proving it passes `sourceIndex`, not the index in the filtered list:
+Conservar o añadir en cada prueba de tabla una fila con sourceIndex: 4 y comprobar que una acción Archivar llama onRecordAction('archive', 4). Usar alias: 'Resultado' en SimpleRecordsTable y title: 'P-09' en ProbetaRecordsTable.
 
-```jsx
-test('uses the original source index for an action on a filtered row', () => {
-  const onRecordAction = vi.fn()
-  render(<SimpleRecordsTable fields={[{ name: 'alias', type: 'text' }]} records={[{ id: 9, alias: 'Resultado', sourceIndex: 4 }]} database={{}} selectedTableName="ACABADO" onOpenRecord={vi.fn()} onDelete={vi.fn()} onRecordAction={onRecordAction} getRecordActions={() => [{ kind: 'archive', label: 'Archivar' }]} />)
+- [ ] **Step 2: Ejecutar las pruebas de índices y confirmar su estado inicial**
 
-  fireEvent.click(screen.getByRole('button', { name: 'Archivar' }))
-  expect(onRecordAction).toHaveBeenCalledWith('archive', 4)
-})
-```
+Run: npm test -- src/components/SimpleRecordsTable.test.jsx src/components/ProbetaRecordsTable.test.jsx
 
-Use the same assertion in `ProbetaRecordsTable.test.jsx` for a row with `sourceIndex: 4`.
+Expected: PASS; estas pruebas evitan que las acciones operen sobre el índice visual de una tabla filtrada.
 
-- [ ] **Step 2: Run the two regression tests to verify they fail**
+- [ ] **Step 3: Separar borrador y búsqueda aplicada**
 
-Run: `npm test -- src/components/SimpleRecordsTable.test.jsx src/components/ProbetaRecordsTable.test.jsx`
+En src/App.jsx sustituir searchTableName, searchQuery y searchFilters por:
 
-Expected: FAIL because both components still use the filtered array index `0`.
+~~~js
+const [draftSearch, setDraftSearch] = useState({ tableName: null, query: '', filters: [] })
+const [appliedSearch, setAppliedSearch] = useState(null)
+~~~
 
-- [ ] **Step 3: Wire the feature into App and preserve original indexes**
+Extraer un helper local getRowsForTable(tableName) que reproduzca la consolidación actual de PROBETA, RECETAS y tablas simples, añadiendo sourceIndex. Calcular searchFields y searchFieldGroups desde draftSearch.tableName para poder preparar criterios antes de confirmar. Calcular visibleSectionRecords desde la sección normal si appliedSearch es null; si existe, desde appliedSearch.tableName mediante filterRecordRows con los campos de esa instantánea.
 
-In `App.jsx`:
+Implementar applySearch(): si draftSearch.tableName es nulo no hace nada; si existe, copiar tableName, query y cada filtro, guardar la instantánea, y después seleccionar esa sección con selectTable(tableName, { preserveSearch: true }). El modo preserveSearch mantiene la instantánea; un click normal de la barra lateral restablece borrador e instantánea.
 
-1. Set `selectedTableName` to `null` initially and in `resetWorkspaceState()`. Continue using `SECTION_ORDER[0]` only as the inert initial draft source.
-2. Add controlled `searchQuery` and `searchFilters` state. `selectTable(tableName)` clears query/filters and keeps its current reset and refresh behavior. Add `clearSearchTable()` to set the selected table to `null`, clear both filters, close forms, and restore the inactive workspace.
-3. Derive `sectionRecordsWithSourceIndexes` by mapping every current `sectionRecords` row to `{ ...record, sourceIndex }`. Derive `searchFields` with `getSearchFieldOptions(selectedTableName, sectionRecordsWithSourceIndexes)`. Derive `visibleSectionRecords` with `filterRecordRows()` only while a table is selected; otherwise use an empty list.
-4. Render `GlobalRecordSearch` between `AppHeader` and `<main>`, passing the controlled callbacks. Keep `SectionSidebar` bound to `selectedTableName`, so a sidebar click also selects the global type chip.
-5. Pass `visibleSectionRecords` and its length to both existing record tables and `SectionTable`. When no type is selected, show the title `Búsqueda de registros`, disable creation, and show `Escribe o selecciona un tipo de registro para empezar.` rather than the generic empty-table copy.
-6. Ensure every create/open/action handler is unreachable while no type is selected. Existing form behavior resumes unchanged once a type is selected.
+Implementar clearSearch(): restablece el borrador a { tableName: null, query: '', filters: [] }, appliedSearch a null y conserva selectedTableName y su listado normal.
 
-In each table component, compute `const sourceIndex = record.sourceIndex ?? index` in the row map. Use `sourceIndex` for `onOpenRecord`, `onRecordAction`, `onDelete`, `isDeletePending`, `isActionPending`, and `getRecordActions`; keep the DOM key stable using record id plus source index.
+- [ ] **Step 4: Conectar props, lupa y navegación lateral**
 
-- [ ] **Step 4: Run regression and feature tests to verify they pass**
+Renderizar GlobalRecordSearch con draftSearch, searchFields, searchFieldGroups, database, onDraftChange={setDraftSearch}, onSubmit={applySearch} y onClear={clearSearch}. Mantener SectionSidebar con onSelect={selectTable}. Al confirmar una búsqueda de Recetas, la tabla pasa a Recetas solo entonces. Al elegir una sección lateral, se limpian ambos estados antes de cargar la lista activa. Conservar los callbacks de edición, archivo y eliminación; los registros filtrados deben seguir aportando sourceIndex.
 
-Run: `npm test -- src/utils/recordSearch.test.js src/components/GlobalRecordSearch.test.jsx src/components/SimpleRecordsTable.test.jsx src/components/ProbetaRecordsTable.test.jsx`
+- [ ] **Step 5: Ejecutar la suite relacionada y confirmar que pasa**
+
+Run: npm test -- src/components/GlobalRecordSearch.test.jsx src/components/SimpleRecordsTable.test.jsx src/components/ProbetaRecordsTable.test.jsx src/utils/recordSearch.test.js src/utils/records.test.js
 
 Expected: PASS.
 
-- [ ] **Step 5: Run the full verification suite and production build**
+- [ ] **Step 6: Crear el commit de aplicación explícita**
 
-Run: `npm test && npm run build`
+~~~bash
+git add src/App.jsx src/components/SimpleRecordsTable.test.jsx src/components/ProbetaRecordsTable.test.jsx
+git commit -m "feat: apply record search on demand"
+~~~
 
-Expected: all tests PASS and Vite completes the production build. Treat the existing chunk-size warning as non-blocking only if it is the sole build warning.
-
-- [ ] **Step 6: Commit the integration**
-
-```bash
-git add src/App.jsx src/components/SimpleRecordsTable.jsx src/components/ProbetaRecordsTable.jsx src/components/SimpleRecordsTable.test.jsx src/components/ProbetaRecordsTable.test.jsx
-git commit -m "feat: filter records from global search"
-```
-
-### Task 4: Publish the small branch for review
+### Task 5: Verificar la experiencia completa y preparar la rama
 
 **Files:**
-- Modify: none beyond the Task 1–3 implementation files.
+- Modify only if verification reveals a defect in src/App.jsx, src/App.css, src/components/GlobalRecordSearch.jsx, src/utils/recordSearch.js or their tests.
 
 **Interfaces:**
-- Consumes: the verified commits from Tasks 1–3.
-- Produces: a remote task branch ready for the PR `feature/client-requests-2026-09-08-global-record-search → feature/client-requests-2026-09-08`.
+- Consumes: todos los entregables de Tasks 1–4.
+- Produces: una rama verificable con barra única y resultados aplicados por lupa.
 
-- [ ] **Step 1: Inspect the final change set**
+- [ ] **Step 1: Ejecutar todas las pruebas**
 
-Run: `git status --short && git log --oneline origin/feature/client-requests-2026-09-08..HEAD && git diff --check origin/feature/client-requests-2026-09-08...HEAD`
+Run: npm test -- --run
 
-Expected: only intentional tracked feature files appear; `.vite/` is untracked and excluded.
+Expected: PASS, sin fallos de Vitest.
 
-- [ ] **Step 2: Push the task branch**
+- [ ] **Step 2: Generar la aplicación de producción**
 
-Run:
+Run: npm run build
 
-```bash
-git push -u origin feature/client-requests-2026-09-08-global-record-search
-```
+Expected: exit code 0. Anotar cualquier aviso existente de tamaño de bundle sin ampliar el alcance.
 
-Expected: the remote branch is updated with the documented design, plan, feature code, and tests.
+- [ ] **Step 3: Comprobar formato de diffs y estado de Git**
 
-- [ ] **Step 3: Prepare the correct PR direction**
+Run: git diff --check && git status --short --branch
 
-Open or provide the GitHub compare URL with this exact direction:
+Expected: sin errores de espacios y sin incluir .vite/ en staging.
 
-```text
-feature/client-requests-2026-09-08-global-record-search
-  → feature/client-requests-2026-09-08
-```
+- [ ] **Step 4: Comprobación manual en navegador**
 
-Do not merge it automatically. The integration branch remains the only branch that will later target `develop`.
+Iniciar npm run dev -- --host 127.0.0.1 y comprobar: barra en reposo; foco que muestra tipos; selección de Probeta dentro de la misma barra; apertura de Capas y Resultados; condición Largo [mm] mayor que; que editar no altera la tabla; que la lupa muestra resultados; que una x elimina el filtro solo del borrador hasta pulsar de nuevo la lupa; y que una sección lateral limpia la búsqueda.
+
+- [ ] **Step 5: Crear el commit de cualquier corrección de verificación**
+
+Si la comprobación modifica archivos, añadir únicamente los corregidos y ejecutar:
+
+~~~bash
+git add <archivos-corregidos>
+git commit -m "fix: refine global record search"
+~~~
+
+Si no se modifica ningún archivo, no crear un commit vacío.
+
+- [ ] **Step 6: Publicar la rama de tarea**
+
+Run: git push origin feature/client-requests-2026-09-08-global-record-search
+
+Expected: la rama remota contiene toda la implementación y está lista para abrir una PR hacia feature/client-requests-2026-09-08.
