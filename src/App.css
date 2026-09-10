@@ -533,6 +533,24 @@
   background: var(--table-wrap-bg);
 }
 
+.table-scroll-top {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 18px;
+  margin-bottom: 8px;
+  border-radius: 9px;
+  scrollbar-gutter: stable;
+}
+
+.table-scroll-top:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.table-scroll-top-spacer {
+  height: 1px;
+}
+
 .data-table {
   width: 100%;
   min-width: 760px;

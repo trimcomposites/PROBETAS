@@ -18,6 +18,7 @@ import SimpleSectionForm from './components/SimpleSectionForm'
 import SqlConsoleModal from './components/SqlConsoleModal'
 import UserManagementModal from './components/UserManagementModal'
 import {
+  ADMIN_ONLY_SECTIONS,
   PROBETA_STEPS,
   SECTION_ORDER,
   SIMPLE_SECTION_FIELDS,
@@ -200,6 +201,11 @@ function App() {
   )
   const currentRole = normalizeRole(currentProfile?.role)
   const permissions = getPermissionSet(currentRole)
+  const visibleSectionOrder = permissions.canManageUsers
+    ? SECTION_ORDER
+    : SECTION_ORDER.filter((tableName) => !ADMIN_ONLY_SECTIONS.includes(tableName))
+  const canManageSelectedTable =
+    !ADMIN_ONLY_SECTIONS.includes(selectedTableName) || permissions.canManageUsers
   const currentUserRoleLabel = ROLE_LABELS[currentRole]
   const isCurrentUserApproved = Boolean(currentProfile?.is_approved)
 
@@ -450,6 +456,10 @@ function App() {
   }, [session])
 
   function selectTable(tableName) {
+    if (ADMIN_ONLY_SECTIONS.includes(tableName) && !permissions.canManageUsers) {
+      return
+    }
+
     setSelectedTableName(tableName)
     setRecordListMode('active')
     setSelectedRecordIndex(null)
@@ -470,6 +480,11 @@ function App() {
 
     if (!permissions.canCreate) {
       showFeedback('error', 'Tu rol no puede crear registros.')
+      return
+    }
+
+    if (!canManageSelectedTable) {
+      showFeedback('error', 'Solo un administrador puede gestionar esta seccion.')
       return
     }
 
@@ -566,7 +581,11 @@ function App() {
           ? buildRecetaDraftFromRecord(source, database)
         : { ...source },
     )
-    setFormMode(recordListMode === 'archived' ? 'view' : permissions.canUpdate ? 'edit' : 'view')
+    setFormMode(
+      recordListMode === 'archived' || !canManageSelectedTable || !permissions.canUpdate
+        ? 'view'
+        : 'edit',
+    )
     setActiveProbetaStep(PROBETA_STEPS[0])
     setActiveRecipeStepIndex(0)
     setFormFieldErrors({})
@@ -852,6 +871,11 @@ function App() {
       return
     }
 
+    if (!canManageSelectedTable) {
+      showFeedback('error', 'Solo un administrador puede gestionar esta seccion.')
+      return
+    }
+
     let attachmentIdsToDelete = []
 
     if (
@@ -973,6 +997,10 @@ function App() {
   }
 
   function getRecordActions(record) {
+    if (!canManageSelectedTable) {
+      return []
+    }
+
     if (record?.isDraft) {
       return [{ kind: 'discard', label: 'Descartar' }]
     }
@@ -1002,6 +1030,11 @@ function App() {
   }
 
   function requestRecordAction(action, index) {
+    if (!canManageSelectedTable) {
+      showFeedback('error', 'Solo un administrador puede gestionar esta seccion.')
+      return
+    }
+
     const selectedRecord = sectionRecords[index]
 
     if (action === 'discard') {
@@ -1107,6 +1140,11 @@ function App() {
   function openRelatedRecordModal(tableName, fieldName, targetDraft) {
     if (!permissions.canCreate) {
       showFeedback('error', 'Tu rol no puede crear registros relacionados.')
+      return
+    }
+
+    if (ADMIN_ONLY_SECTIONS.includes(tableName) && !permissions.canManageUsers) {
+      showFeedback('error', 'Solo un administrador puede crear etiquetas de producto.')
       return
     }
 
@@ -1260,7 +1298,8 @@ function App() {
       options.targetDraft &&
         referencedTableName &&
         SIMPLE_SECTION_FIELDS[referencedTableName] &&
-        permissions.canCreate,
+        permissions.canCreate &&
+        (!ADMIN_ONLY_SECTIONS.includes(referencedTableName) || permissions.canManageUsers),
     )
 
     if (field.type === 'bool') {
@@ -1299,6 +1338,7 @@ function App() {
         <select
           value={value}
           disabled={isReadOnly}
+          required={field.required}
           onChange={(event) => {
             if (event.target.value === '__new_reference__') {
               openRelatedRecordModal(
@@ -1348,6 +1388,7 @@ function App() {
         type={getInputType(field)}
         value={value}
         readOnly={isReadOnly}
+        required={field.required}
         onChange={(event) => onChangeField(field, event.target.value)}
       />
     )
@@ -2014,7 +2055,7 @@ function App() {
 
       <main className="workspace">
         <SectionSidebar
-          sectionOrder={SECTION_ORDER}
+          sectionOrder={visibleSectionOrder}
           selectedTableName={selectedTableName}
           database={database}
           onSelect={selectTable}
@@ -2023,7 +2064,7 @@ function App() {
         <SectionTable
           title={recordListMode === 'archived' ? `${getTableLabel(selectedTableName)} · Archivados` : getTableLabel(selectedTableName)}
           onCreate={openCreateForm}
-          canCreate={permissions.canCreate && recordListMode === 'active'}
+          canCreate={permissions.canCreate && canManageSelectedTable && recordListMode === 'active'}
           hasRecords={sectionRecords.length > 0}
           statusMessage={
             isLoadingDatabase
