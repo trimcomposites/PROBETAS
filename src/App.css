@@ -1591,6 +1591,23 @@
   font-size: 0.92rem;
 }
 
+.pdf-review-cell {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.pdf-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pdf-review-date {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .user-management-shell {
   display: grid;
   gap: 16px;
