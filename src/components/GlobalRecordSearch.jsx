@@ -46,6 +46,7 @@ function GlobalRecordSearch({
 }) {
   const [typeQuery, setTypeQuery] = useState('')
   const [highlightedTypeIndex, setHighlightedTypeIndex] = useState(0)
+  const [isTypeInputActive, setIsTypeInputActive] = useState(false)
   const [isFilterEditorOpen, setIsFilterEditorOpen] = useState(false)
   const [draftFieldName, setDraftFieldName] = useState('')
   const [draftOperator, setDraftOperator] = useState('')
@@ -62,6 +63,7 @@ function GlobalRecordSearch({
   function selectType(tableName) {
     setTypeQuery('')
     setHighlightedTypeIndex(0)
+    setIsTypeInputActive(false)
     onSelectTable(tableName)
   }
 
@@ -84,6 +86,7 @@ function GlobalRecordSearch({
     if (event.key === 'Escape') {
       setTypeQuery('')
       setHighlightedTypeIndex(0)
+      setIsTypeInputActive(false)
     }
   }
 
@@ -260,17 +263,19 @@ function GlobalRecordSearch({
           <input
             role="combobox"
             aria-label="Tipo de registro"
-            aria-expanded={matchingTables.length > 0}
+            aria-expanded={isTypeInputActive && matchingTables.length > 0}
             aria-controls="global-record-search-suggestions"
             value={typeQuery}
             onChange={(event) => {
               setTypeQuery(event.target.value)
               setHighlightedTypeIndex(0)
             }}
+            onFocus={() => setIsTypeInputActive(true)}
+            onBlur={() => setIsTypeInputActive(false)}
             onKeyDown={handleTypeKeyDown}
             placeholder="Escribe Probetas, Recetas, Fibras..."
           />
-          {matchingTables.length ? (
+          {isTypeInputActive && matchingTables.length ? (
             <div id="global-record-search-suggestions" className="global-record-search-suggestions" role="listbox">
               {matchingTables.map((tableName, index) => (
                 <button
@@ -286,9 +291,9 @@ function GlobalRecordSearch({
                 </button>
               ))}
             </div>
-          ) : (
+          ) : isTypeInputActive ? (
             <p className="global-record-search-hint">No hay tipos de registro que coincidan.</p>
-          )}
+          ) : null}
         </label>
       )}
     </section>

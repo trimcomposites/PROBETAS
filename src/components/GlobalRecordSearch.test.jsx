@@ -12,6 +12,31 @@ const recipeField = {
 }
 
 describe('GlobalRecordSearch', () => {
+  test('mantiene ocultas las sugerencias hasta que se pulsa la barra', () => {
+    render(
+      <GlobalRecordSearch
+        sectionOrder={['PROBETA', 'RECETAS']}
+        selectedTableName={null}
+        fields={[]}
+        database={{}}
+        query=""
+        filters={[]}
+        onSelectTable={vi.fn()}
+        onClearTable={vi.fn()}
+        onQueryChange={vi.fn()}
+        onAddFilter={vi.fn()}
+        onRemoveFilter={vi.fn()}
+      />,
+    )
+
+    const typeInput = screen.getByRole('combobox', { name: 'Tipo de registro' })
+    expect(screen.queryByRole('option', { name: 'Probeta' })).toBeNull()
+
+    fireEvent.focus(typeInput)
+
+    expect(screen.getByRole('option', { name: 'Probeta' })).toBeTruthy()
+  })
+
   test('permite escribir y seleccionar Probeta como único tipo', () => {
     const onSelectTable = vi.fn()
 
@@ -31,7 +56,9 @@ describe('GlobalRecordSearch', () => {
       />,
     )
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Tipo de registro' }), {
+    const typeInput = screen.getByRole('combobox', { name: 'Tipo de registro' })
+    fireEvent.focus(typeInput)
+    fireEvent.change(typeInput, {
       target: { value: 'probetas' },
     })
     fireEvent.click(screen.getByRole('option', { name: 'Probeta' }))

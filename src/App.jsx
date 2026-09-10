@@ -129,7 +129,8 @@ function App() {
   const [isLoadingDatabase, setIsLoadingDatabase] = useState(true)
   const [databaseError, setDatabaseError] = useState('')
   const [recordListMode, setRecordListMode] = useState('active')
-  const [selectedTableName, setSelectedTableName] = useState(null)
+  const [selectedTableName, setSelectedTableName] = useState(SECTION_ORDER[0])
+  const [searchTableName, setSearchTableName] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchFilters, setSearchFilters] = useState([])
   const [selectedRecordIndex, setSelectedRecordIndex] = useState(null)
@@ -200,8 +201,8 @@ function App() {
     [selectedTableName, sectionRecordsWithSourceIndexes],
   )
   const visibleSectionRecords = useMemo(() => {
-    if (!selectedTableName) {
-      return []
+    if (!searchTableName) {
+      return sectionRecordsWithSourceIndexes
     }
 
     return filterRecordRows({
@@ -211,7 +212,7 @@ function App() {
       query: searchQuery,
       filters: searchFilters,
     })
-  }, [database, searchFields, searchFilters, searchQuery, sectionRecordsWithSourceIndexes, selectedTableName])
+  }, [database, searchFields, searchFilters, searchQuery, searchTableName, sectionRecordsWithSourceIndexes])
   const probetaAverageThickness = useMemo(
     () =>
       draft.has_uncured_thickness
@@ -258,7 +259,8 @@ function App() {
     setIsLoadingDatabase(false)
     setDatabaseError('')
     setRecordListMode('active')
-    setSelectedTableName(null)
+    setSelectedTableName(SECTION_ORDER[0])
+    setSearchTableName(null)
     setSearchQuery('')
     setSearchFilters([])
     setSelectedRecordIndex(null)
@@ -484,8 +486,9 @@ function App() {
       .catch(() => setAttachmentIndex({}))
   }, [session])
 
-  function selectTable(tableName) {
+  function selectTable(tableName, activateSearch = false) {
     setSelectedTableName(tableName)
+    setSearchTableName(activateSearch ? tableName : null)
     setSearchQuery('')
     setSearchFilters([])
     setRecordListMode('active')
@@ -501,18 +504,9 @@ function App() {
   }
 
   function clearSearchTable() {
-    setSelectedTableName(null)
+    setSearchTableName(null)
     setSearchQuery('')
     setSearchFilters([])
-    setRecordListMode('active')
-    setSelectedRecordIndex(null)
-    setActiveProbetaDraftId(null)
-    setDraft(createEmptyDraft(SECTION_ORDER[0], getTable(SECTION_ORDER[0])))
-    setFormMode(null)
-    setActiveProbetaStep(PROBETA_STEPS[0])
-    setActiveRecipeStepIndex(0)
-    setFormFieldErrors({})
-    setArchivedReferenceLabels({})
   }
 
   function openCreateForm() {
@@ -2066,12 +2060,12 @@ function App() {
 
       <GlobalRecordSearch
         sectionOrder={SECTION_ORDER}
-        selectedTableName={selectedTableName}
+        selectedTableName={searchTableName}
         fields={searchFields}
         database={database}
         query={searchQuery}
         filters={searchFilters}
-        onSelectTable={selectTable}
+        onSelectTable={(tableName) => selectTable(tableName, true)}
         onClearTable={clearSearchTable}
         onQueryChange={setSearchQuery}
         onAddFilter={(filter) => setSearchFilters((currentFilters) => [...currentFilters, filter])}
@@ -2091,22 +2085,14 @@ function App() {
         />
 
         <SectionTable
-          title={
-            selectedTableName
-              ? recordListMode === 'archived'
-                ? `${getTableLabel(selectedTableName)} · Archivados`
-                : getTableLabel(selectedTableName)
-              : 'Búsqueda de registros'
-          }
+          title={recordListMode === 'archived' ? `${getTableLabel(selectedTableName)} · Archivados` : getTableLabel(selectedTableName)}
           onCreate={openCreateForm}
-          canCreate={Boolean(selectedTableName) && permissions.canCreate && recordListMode === 'active'}
+          canCreate={permissions.canCreate && recordListMode === 'active'}
           hasRecords={visibleSectionRecords.length > 0}
           statusMessage={
-            !selectedTableName
-              ? 'Escribe o selecciona un tipo de registro para empezar.'
-              : isLoadingDatabase
-                ? 'Cargando datos desde Supabase...'
-                : databaseError || undefined
+            isLoadingDatabase
+              ? 'Cargando datos desde Supabase...'
+              : databaseError || undefined
           }
           headerActions={
             permissions.canViewArchived ? (
