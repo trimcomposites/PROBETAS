@@ -21,6 +21,7 @@ const TABLE_NAME_CANDIDATES = {
     'pre_impregnado_type',
   ],
   RESINA_SYSTEM: ['RESINA_SYSTEM', 'resina_system'],
+  RESIN_PRODUCT_CATEGORY: ['RESIN_PRODUCT_CATEGORY', 'resin_product_category'],
   FIBRAS_REFUERZO: ['FIBRAS_REFUERZO', 'fibras_refuerzo'],
   RESULTS: ['RESULTS', 'results'],
   ACABADO: ['ACABADO', 'acabado'],

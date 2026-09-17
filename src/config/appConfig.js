@@ -8,7 +8,10 @@ export const SECTION_ORDER = [
   'FABRICANTE',
   'PRE-IMPREGNADO_TYPE',
   'RESINA_SYSTEM',
+  'RESIN_PRODUCT_CATEGORY',
 ]
+
+export const ADMIN_ONLY_SECTIONS = ['RESIN_PRODUCT_CATEGORY']
 
 export const PROBETA_STEPS = ['Capas', 'Curado', 'Resultados']
 
@@ -22,6 +25,7 @@ export const TABLE_LABELS = {
   FABRICANTE: 'Fabricante',
   'PRE-IMPREGNADO_TYPE': 'Tricotado',
   RESINA_SYSTEM: 'Sistema de resina',
+  RESIN_PRODUCT_CATEGORY: 'Etiquetas de producto',
 }
 
 export const FIELD_LABELS = {
@@ -97,6 +101,17 @@ export const FIELD_LABELS = {
   acabado_cara_b_id: 'Acabado cara B',
   direccion_id: 'Direccion',
   pre_impregnado_id: 'Material',
+  description: 'Description',
+  product_category_id: 'Product category',
+  outlife_at_20c: 'Outlife at 20°C',
+  initial_cure_temp_c: 'Initial cure temperature (°C)',
+  initial_cure_time_hours: 'Initial cure time (hours)',
+  post_cure_option: 'Post cure option',
+  max_tg_onset_c: 'Max Tg onset (°C - DMA)',
+  max_tg_peak_c: 'Max Tg peak (°C - DMA)',
+  toughened: 'Toughened',
+  standard_process: 'Standard process',
+  typical_application_areas: 'Typical application areas',
 }
 
 export const SIMPLE_SECTION_FIELDS = {
@@ -129,8 +144,26 @@ export const SIMPLE_SECTION_FIELDS = {
   ],
   FABRICANTE: [{ name: 'alias', type: 'text' }],
   'PRE-IMPREGNADO_TYPE': [{ name: 'alias', type: 'text' }],
+  RESIN_PRODUCT_CATEGORY: [{ name: 'alias', type: 'text' }],
   RESINA_SYSTEM: [
     { name: 'alias', type: 'text' },
+    { name: 'description', type: 'text' },
+    {
+      name: 'product_category_id',
+      type: 'int8',
+      references: 'RESIN_PRODUCT_CATEGORY.id',
+      required: true,
+    },
+    { name: 'fabricante_id', type: 'int8', references: 'FABRICANTE.id', required: true },
+    { name: 'outlife_at_20c', type: 'text' },
+    { name: 'initial_cure_temp_c', type: 'text' },
+    { name: 'initial_cure_time_hours', type: 'text' },
+    { name: 'post_cure_option', type: 'bool' },
+    { name: 'max_tg_onset_c', type: 'float4' },
+    { name: 'max_tg_peak_c', type: 'float4' },
+    { name: 'toughened', type: 'bool' },
+    { name: 'standard_process', type: 'text' },
+    { name: 'typical_application_areas', type: 'text' },
     { name: 'pdf_mds_url', type: 'text' },
     { name: 'fecha_revision_mds', type: 'date' },
     { name: 'pdf_msdt_url', type: 'text' },

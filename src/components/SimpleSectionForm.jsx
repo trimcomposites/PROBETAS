@@ -6,7 +6,9 @@ function SimpleSectionForm({ fields, renderFieldControl, fieldErrors = {} }) {
       key={field.name}
       className={`form-field ${fieldErrors[field.name] ? 'has-field-error' : ''}`}
     >
-      <span className="field-label">{getFieldLabel(field.name)}</span>
+      <span className="field-label">
+        {getFieldLabel(field.name)}{field.required ? ' *' : ''}
+      </span>
       {renderFieldControl(field)}
     </label>
   ))
