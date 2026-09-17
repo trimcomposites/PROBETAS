@@ -15,6 +15,18 @@ const RAMP_LABELS = {
   vacio_mbar_por_min: 'Rampa ( bar(g) / min )',
 }
 
+const hourlyRateFormatter = new Intl.NumberFormat('es-ES', {
+  maximumFractionDigits: 3,
+})
+
+function formatHourlyRate(value) {
+  const numericValue = Number(value)
+
+  if (!Number.isFinite(numericValue) || numericValue === 0) return null
+
+  return hourlyRateFormatter.format(numericValue * 60)
+}
+
 function TransitionFields({
   modeField,
   timeField,
@@ -62,6 +74,11 @@ function TransitionFields({
   const rampValue = isTimeMode ? transition?.ramp ?? '' : step?.[rampField] ?? ''
   const isTemperatureRamp = rampField === 'temp_grados_por_min'
   const temperatureUnitLabel = temperatureUnit === 'fahrenheit' ? '°F' : '°C'
+  const displayedRampValue = isTemperatureRamp
+    ? formatTemperatureRateInput(rampValue, temperatureUnit)
+    : rampValue
+  const hourlyRampValue = formatHourlyRate(displayedRampValue)
+  const hourlyRampUnit = isTemperatureRamp ? temperatureUnitLabel : 'bar(g)'
 
   function changeControl(mode, fieldName, value) {
     if (mode === 'time' && maxDuration && Number(value) > Number(maxDuration)) return
@@ -103,11 +120,7 @@ function TransitionFields({
         <div className="input-with-clear">
           <input
             type="number"
-            value={
-              isTemperatureRamp
-                ? formatTemperatureRateInput(rampValue, temperatureUnit)
-                : rampValue
-            }
+            value={displayedRampValue}
             readOnly={isReadOnly}
             onChange={(event) =>
               changeControl(
@@ -130,6 +143,11 @@ function TransitionFields({
             </button>
           ) : null}
         </div>
+        {hourlyRampValue ? (
+          <small className="ramp-hour-equivalent">
+            Equivalente: {hourlyRampValue} {hourlyRampUnit} / h
+          </small>
+        ) : null}
       </label>
     </>
   )
