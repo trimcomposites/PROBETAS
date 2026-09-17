@@ -7,6 +7,7 @@ import BrandWordmark from './components/BrandWordmark'
 import FormModal from './components/FormModal'
 import PasswordRecoveryScreen from './components/PasswordRecoveryScreen'
 import PdfDropzone from './components/PdfDropzone'
+import PdfReviewCell from './components/PdfReviewCell'
 import ProbetaForm from './components/ProbetaForm'
 import ProbetaRecordsTable from './components/ProbetaRecordsTable'
 import RecordActionConfirmation from './components/RecordActionConfirmation'
@@ -80,6 +81,7 @@ import {
   getCalculatedDensity,
   getCalculatedThicknessFromMeasurements,
   getInputType,
+  getMissingPdfReviewDateFields,
   getRecordLabel,
   moveItem,
   parseFieldValue,
@@ -192,7 +194,9 @@ function App() {
   )
   const probetaCalculatedDensity = useMemo(() => getCalculatedDensity(draft), [draft])
   const simpleFields = SIMPLE_SECTION_FIELDS[selectedTableName] ?? []
-  const simpleTableFields = SIMPLE_SECTION_TABLE_FIELDS[selectedTableName] ?? simpleFields
+  const simpleTableFields = (SIMPLE_SECTION_TABLE_FIELDS[selectedTableName] ?? simpleFields).filter(
+    (field) => !['fecha_revision_mds', 'fecha_revision_msdt'].includes(field.name),
+  )
   const recipeTableFields = simpleTableFields.map((field) =>
     field.name === 'temperatura_final_c'
       ? { name: 'pico_temperatura_c', type: 'float4' }
@@ -852,6 +856,10 @@ function App() {
       return
     }
 
+    if (selectedTableName !== 'PROBETA' && selectedTableName !== 'RECETAS') {
+      if (!validatePdfReviewDates(draft)) return
+    }
+
     let attachmentIdsToDelete = []
 
     if (
@@ -903,6 +911,24 @@ function App() {
     } catch (error) {
       showSafeError(error, 'No se pudo guardar el registro.', { markField: true })
     }
+  }
+
+  function validatePdfReviewDates(record) {
+    const missingDateFields = getMissingPdfReviewDateFields(record)
+
+    if (!missingDateFields.length) return true
+
+    setFormFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      ...Object.fromEntries(missingDateFields.map((fieldName) => [fieldName, true])),
+    }))
+    showFeedback(
+      'error',
+      missingDateFields.length === 1
+        ? 'Indica la fecha de revisión del PDF antes de guardar.'
+        : 'Indica las fechas de revisión de los PDFs antes de guardar.',
+    )
+    return false
   }
 
   async function handleSaveProbetaDraft() {
@@ -1174,6 +1200,8 @@ function App() {
       ...relatedRecordDraft,
       [keyField]: rawName,
     }
+
+    if (!validatePdfReviewDates(newRecord)) return
 
     try {
       const savedRecord = await saveSimpleRecord(tableName, newRecord)
@@ -1499,6 +1527,8 @@ function App() {
       ...preImpregnadoDraft,
       text_id: textId,
     }
+
+    if (!validatePdfReviewDates(newMaterial)) return
 
     try {
       const savedMaterial = await saveSimpleRecord('PRE-IMPREGNADO', newMaterial)
@@ -2115,31 +2145,16 @@ function App() {
                   }
 
                   const attachmentId = record[field.name]
-                  const fileMetadata =
-                    attachmentIndex[attachmentId] ?? getAttachmentMetadata(attachmentId)
-
-                  if (!attachmentId) {
-                    return 'Sin archivo'
-                  }
+                  const reviewDateField =
+                    field.name === 'pdf_mds_url' ? 'fecha_revision_mds' : 'fecha_revision_msdt'
 
                   return (
-                    <div className="file-cell">
-                      <span className="file-name">{fileMetadata?.name ?? 'PDF'}</span>
-                      <button
-                        type="button"
-                        className="ghost-button compact"
-                        onClick={() => handleAttachmentPreview(attachmentId)}
-                      >
-                        Ver
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-button compact"
-                        onClick={() => handleAttachmentDownload(attachmentId)}
-                      >
-                        Descargar
-                      </button>
-                    </div>
+                    <PdfReviewCell
+                      attachmentId={attachmentId}
+                      reviewDate={record[reviewDateField]}
+                      onPreview={handleAttachmentPreview}
+                      onDownload={handleAttachmentDownload}
+                    />
                   )
                 }}
               />

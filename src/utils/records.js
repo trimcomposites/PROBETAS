@@ -14,6 +14,17 @@ export const UNCURED_THICKNESS_FIELDS = [
   'uncured_t8',
 ]
 
+const PDF_REVIEW_DATE_FIELDS = {
+  pdf_mds_url: 'fecha_revision_mds',
+  pdf_msdt_url: 'fecha_revision_msdt',
+}
+
+export function getMissingPdfReviewDateFields(record) {
+  return Object.entries(PDF_REVIEW_DATE_FIELDS)
+    .filter(([pdfField, reviewDateField]) => record?.[pdfField] && !record?.[reviewDateField])
+    .map(([, reviewDateField]) => reviewDateField)
+}
+
 export function createEmptyLayer() {
   return {
     id: generateUuid(),
@@ -122,6 +133,10 @@ export function parseFieldValue(field, value) {
 }
 
 export function getInputType(field) {
+  if (field.type === 'date') {
+    return 'date'
+  }
+
   if (field.type.startsWith('float') || field.type.startsWith('int')) {
     return 'number'
   }
