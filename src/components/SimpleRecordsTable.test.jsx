@@ -42,4 +42,25 @@ describe('SimpleRecordsTable', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Archivar' }))
     expect(onRecordAction).toHaveBeenCalledWith('archive', 0)
   })
+
+  test('usa el índice original para una acción sobre una fila filtrada', () => {
+    const onRecordAction = vi.fn()
+
+    render(
+      <SimpleRecordsTable
+        fields={[{ name: 'alias', type: 'text' }]}
+        records={[{ id: 9, alias: 'Resultado', sourceIndex: 4 }]}
+        database={{}}
+        onOpenRecord={vi.fn()}
+        onDelete={vi.fn()}
+        onRecordAction={onRecordAction}
+        getRecordActions={() => [{ kind: 'archive', label: 'Archivar' }]}
+        selectedTableName="ACABADO"
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archivar' }))
+
+    expect(onRecordAction).toHaveBeenCalledWith('archive', 4)
+  })
 })

@@ -16,22 +16,22 @@ function SimpleRecordsTable({
   isDeletePending = () => false,
   isActionPending = () => false,
 }) {
-  function getActions(record, index) {
+  function getActions(record, sourceIndex) {
     if (getRecordActions) {
-      return getRecordActions(record, index)
+      return getRecordActions(record, sourceIndex)
     }
 
     return canDelete ? [{ kind: 'delete', label: 'Eliminar' }] : []
   }
 
-  function handleAction(kind, index) {
+  function handleAction(kind, sourceIndex) {
     if (onRecordAction) {
-      onRecordAction(kind, index)
+      onRecordAction(kind, sourceIndex)
       return
     }
 
     if (kind === 'delete') {
-      onDelete(index)
+      onDelete(sourceIndex)
     }
   }
 
@@ -46,40 +46,46 @@ function SimpleRecordsTable({
         </tr>
       </thead>
       <tbody>
-        {records.map((record, index) => (
-          <tr key={`${selectedTableName}-${index}`}>
-            {fields.map((field) => (
-              <td key={`${index}-${field.name}`}>
-                {renderCellValue
-                  ? renderCellValue(field, record, index)
-                  : formatCellValue(field, record[field.name], database)}
-              </td>
-            ))}
-            <td className="actions-cell">
-              <div className="actions-group">
-                <button type="button" className="inline-button" onClick={() => onOpenRecord(index)}>
-                  {primaryActionLabel}
-                </button>
-                {getActions(record, index).map((action) => {
-                  const isPending =
-                    action.kind === 'delete' ? isDeletePending(index) : isActionPending(action.kind, index)
+        {records.map((record, index) => {
+          const sourceIndex = record.sourceIndex ?? index
 
-                  return (
-                    <button
-                      key={action.kind}
-                      type="button"
-                      className={`inline-button ${action.kind === 'delete' ? 'danger' : action.kind === 'archive' ? 'archive' : ''}`.trim()}
-                      onClick={() => handleAction(action.kind, index)}
-                      disabled={isPending}
-                    >
-                      {isPending && action.kind === 'delete' ? 'Eliminando...' : action.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </td>
-          </tr>
-        ))}
+          return (
+            <tr key={`${selectedTableName}-${record.id ?? sourceIndex}-${sourceIndex}`}>
+              {fields.map((field) => (
+                <td key={`${sourceIndex}-${field.name}`}>
+                  {renderCellValue
+                    ? renderCellValue(field, record, sourceIndex)
+                    : formatCellValue(field, record[field.name], database)}
+                </td>
+              ))}
+              <td className="actions-cell">
+                <div className="actions-group">
+                  <button type="button" className="inline-button" onClick={() => onOpenRecord(sourceIndex)}>
+                    {primaryActionLabel}
+                  </button>
+                  {getActions(record, sourceIndex).map((action) => {
+                    const isPending =
+                      action.kind === 'delete'
+                        ? isDeletePending(sourceIndex)
+                        : isActionPending(action.kind, sourceIndex)
+
+                    return (
+                      <button
+                        key={action.kind}
+                        type="button"
+                        className={`inline-button ${action.kind === 'delete' ? 'danger' : action.kind === 'archive' ? 'archive' : ''}`.trim()}
+                        onClick={() => handleAction(action.kind, sourceIndex)}
+                        disabled={isPending}
+                      >
+                        {isPending && action.kind === 'delete' ? 'Eliminando...' : action.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )

@@ -137,6 +137,76 @@ describe('RecetaForm', () => {
     expect(screen.getByRole('spinbutton', { name: /^Rampa \( bar\(g\) \/ min \)/ })).not.toBeNull()
   })
 
+  test('muestra el equivalente por hora de las rampas de temperatura, presión y vacío', () => {
+    const rampDraft = {
+      ...draft,
+      escalones: [
+        {
+          ...draft.escalones[0],
+          temp_final_c: 40,
+          temp_tiempo_min: 10,
+          pres_dwell: false,
+          pres_final_bar: 2,
+          pres_tiempo_min: 5,
+          vacio_dwell: false,
+          vacio_final_mbar: 1,
+          vacio_tiempo_min: 4,
+        },
+      ],
+    }
+
+    render(
+      <RecetaForm
+        draft={rampDraft}
+        activeStepIndex={0}
+        onRecipeFieldChange={vi.fn()}
+        onStepFieldChange={vi.fn()}
+        onAddStep={vi.fn()}
+        onRemoveStep={vi.fn()}
+        onReorderStep={vi.fn()}
+        onSelectStep={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Equivalente: 120 °C / h')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Presion' }))
+    expect(screen.getByText('Equivalente: 12 bar(g) / h')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Vacio' }))
+    expect(screen.getByText('Equivalente: 15 bar(g) / h')).toBeTruthy()
+  })
+
+  test('convierte la referencia por hora de la rampa de temperatura a Fahrenheit', () => {
+    const rampDraft = {
+      ...draft,
+      escalones: [
+        {
+          ...draft.escalones[0],
+          temp_final_c: 40,
+          temp_tiempo_min: 10,
+        },
+      ],
+    }
+
+    render(
+      <RecetaForm
+        draft={rampDraft}
+        activeStepIndex={0}
+        onRecipeFieldChange={vi.fn()}
+        onStepFieldChange={vi.fn()}
+        onAddStep={vi.fn()}
+        onRemoveStep={vi.fn()}
+        onReorderStep={vi.fn()}
+        onSelectStep={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '°F' }))
+
+    expect(screen.getByText('Equivalente: 216 °F / h')).toBeTruthy()
+  })
+
   test('muestra Mantenimiento como interruptor en la cabecera del panel', () => {
     render(
       <RecetaForm

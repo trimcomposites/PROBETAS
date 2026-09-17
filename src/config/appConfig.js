@@ -46,6 +46,8 @@ export const FIELD_LABELS = {
   fibra_refuerzo2_id: 'Fibra de refuerzo 2',
   pdf_mds_url: 'PDF MDS',
   pdf_msdt_url: 'PDF MSDT',
+  fecha_revision_mds: 'Fecha de revision MDS',
+  fecha_revision_msdt: 'Fecha de revision MSDT',
   nombre: 'Nombre',
   descripcion: 'Descripcion',
   temperatura_inicial_c: 'Temperatura inicial',
@@ -117,6 +119,7 @@ export const SIMPLE_SECTION_FIELDS = {
   FIBRAS_REFUERZO: [
     { name: 'alias', type: 'text' },
     { name: 'pdf_mds_url', type: 'text' },
+    { name: 'fecha_revision_mds', type: 'date' },
   ],
   'PRE-IMPREGNADO': [
     { name: 'text_id', type: 'text' },
@@ -129,7 +132,9 @@ export const SIMPLE_SECTION_FIELDS = {
     { name: 'fibra_refuerzo_id', type: 'int8', references: 'FIBRAS_REFUERZO.id' },
     { name: 'fibra_refuerzo2_id', type: 'int8', references: 'FIBRAS_REFUERZO.id' },
     { name: 'pdf_mds_url', type: 'text' },
+    { name: 'fecha_revision_mds', type: 'date' },
     { name: 'pdf_msdt_url', type: 'text' },
+    { name: 'fecha_revision_msdt', type: 'date' },
   ],
   RECETAS: [
     { name: 'nombre', type: 'text' },
@@ -160,7 +165,9 @@ export const SIMPLE_SECTION_FIELDS = {
     { name: 'standard_process', type: 'text' },
     { name: 'typical_application_areas', type: 'text' },
     { name: 'pdf_mds_url', type: 'text' },
+    { name: 'fecha_revision_mds', type: 'date' },
     { name: 'pdf_msdt_url', type: 'text' },
+    { name: 'fecha_revision_msdt', type: 'date' },
   ],
 }
 
@@ -173,7 +180,9 @@ export const SIMPLE_SECTION_TABLE_FIELDS = {
     { name: 'fibra_refuerzo_id', type: 'int8', references: 'FIBRAS_REFUERZO.id' },
     { name: 'fibra_refuerzo2_id', type: 'int8', references: 'FIBRAS_REFUERZO.id' },
     { name: 'pdf_mds_url', type: 'text' },
+    { name: 'fecha_revision_mds', type: 'date' },
     { name: 'pdf_msdt_url', type: 'text' },
+    { name: 'fecha_revision_msdt', type: 'date' },
   ],
 }
 

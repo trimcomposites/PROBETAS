@@ -51,7 +51,9 @@ const tables = [
       { name: 'fibra_refuerzo_id', type: 'int8', references: 'FIBRAS_REFUERZO.id' },
       { name: 'fibra_refuerzo2_id', type: 'int8', references: 'FIBRAS_REFUERZO.id' },
       { name: 'pdf_mds_url', type: 'text' },
+      { name: 'fecha_revision_mds', type: 'date' },
       { name: 'pdf_msdt_url', type: 'text' },
+      { name: 'fecha_revision_msdt', type: 'date' },
     ],
   },
   {
@@ -96,7 +98,9 @@ const tables = [
       { name: 'standard_process', type: 'text' },
       { name: 'typical_application_areas', type: 'text' },
       { name: 'pdf_mds_url', type: 'text' },
+      { name: 'fecha_revision_mds', type: 'date' },
       { name: 'pdf_msdt_url', type: 'text' },
+      { name: 'fecha_revision_msdt', type: 'date' },
     ],
   },
   {
@@ -116,6 +120,7 @@ const tables = [
       { name: 'created_at', type: 'timestamptz' },
       { name: 'alias', type: 'text' },
       { name: 'pdf_mds_url', type: 'text' },
+      { name: 'fecha_revision_mds', type: 'date' },
     ],
   },
   {

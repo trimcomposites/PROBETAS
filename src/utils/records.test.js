@@ -1,5 +1,30 @@
 import { describe, expect, test } from 'vitest'
-import { buildProbetaDraftRows, buildRecetaRows } from './records'
+import { buildProbetaDraftRows, buildProbetaRows, buildRecetaRows, getInputType } from './records'
+import * as recordUtils from './records'
+
+describe('getInputType', () => {
+  test('usa un selector de fecha para las fechas de revisión de PDF', () => {
+    expect(getInputType({ name: 'fecha_revision_mds', type: 'date' })).toBe('date')
+    expect(getInputType({ name: 'fecha_revision_msdt', type: 'date' })).toBe('date')
+  })
+})
+
+describe('getMissingPdfReviewDateFields', () => {
+  test('identifica la fecha que falta para cada PDF adjunto', () => {
+    expect(
+      recordUtils.getMissingPdfReviewDateFields({
+        pdf_mds_url: 'pdfs/mds.pdf',
+        pdf_msdt_url: 'pdfs/msdt.pdf',
+      }),
+    ).toEqual(['fecha_revision_mds', 'fecha_revision_msdt'])
+    expect(
+      recordUtils.getMissingPdfReviewDateFields({
+        pdf_mds_url: 'pdfs/mds.pdf',
+        fecha_revision_mds: '2026-09-10',
+      }),
+    ).toEqual([])
+  })
+})
 
 describe('buildProbetaDraftRows', () => {
   test('adapta un borrador parcial a una fila identificada de la tabla', () => {
@@ -22,6 +47,30 @@ describe('buildProbetaDraftRows', () => {
         density: 1.6,
       },
     ])
+  })
+})
+
+describe('buildProbetaRows', () => {
+  test('expone las dimensiones y medidas de resultados para buscar una probeta', () => {
+    const [row] = buildProbetaRows(
+      [{ id: 1, title: 'P-01', results_id: 7, receta_id: '' }],
+      {
+        RESULTS: [{ id: 7, largo_mm: 250, ancho_mm: 120, espesor_mm: 2.1, t1: 2, weight_g: 82 }],
+        RECETAS: [],
+        ACABADO: [],
+        PROBETA_CAPA: [],
+        CAPA: [],
+        'PRE-IMPREGNADO': [],
+      },
+    )
+
+    expect(row).toMatchObject({
+      largo_mm: 250,
+      ancho_mm: 120,
+      espesor_mm: 2.1,
+      t1: 2,
+      weight_g: 82,
+    })
   })
 })
 

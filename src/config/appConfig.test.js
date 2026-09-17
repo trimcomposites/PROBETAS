@@ -17,7 +17,9 @@ const RESIN_FIELD_NAMES = [
   'standard_process',
   'typical_application_areas',
   'pdf_mds_url',
+  'fecha_revision_mds',
   'pdf_msdt_url',
+  'fecha_revision_msdt',
 ]
 
 describe('resin system fields', () => {
@@ -72,5 +74,32 @@ describe('resin system fields', () => {
       required: true,
     })
     expect(SIMPLE_SECTION_FIELDS.RESIN_PRODUCT_CATEGORY).toEqual([{ name: 'alias', type: 'text' }])
+  })
+})
+
+describe('SIMPLE_SECTION_FIELDS', () => {
+  test('declara una fecha de revisión por cada PDF admitido', () => {
+    expect(SIMPLE_SECTION_FIELDS.FIBRAS_REFUERZO).toEqual(
+      expect.arrayContaining([
+        { name: 'pdf_mds_url', type: 'text' },
+        { name: 'fecha_revision_mds', type: 'date' },
+      ]),
+    )
+    expect(SIMPLE_SECTION_FIELDS['PRE-IMPREGNADO']).toEqual(
+      expect.arrayContaining([
+        { name: 'pdf_mds_url', type: 'text' },
+        { name: 'fecha_revision_mds', type: 'date' },
+        { name: 'pdf_msdt_url', type: 'text' },
+        { name: 'fecha_revision_msdt', type: 'date' },
+      ]),
+    )
+    expect(SIMPLE_SECTION_FIELDS.RESINA_SYSTEM).toEqual(
+      expect.arrayContaining([
+        { name: 'pdf_mds_url', type: 'text' },
+        { name: 'fecha_revision_mds', type: 'date' },
+        { name: 'pdf_msdt_url', type: 'text' },
+        { name: 'fecha_revision_msdt', type: 'date' },
+      ]),
+    )
   })
 })
