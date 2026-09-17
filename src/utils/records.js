@@ -394,7 +394,18 @@ export function buildProbetaRows(records, database) {
         })
         .filter(Boolean)
         .join(', '),
+      largo_mm: draft.largo_mm,
+      ancho_mm: draft.ancho_mm,
+      espesor_mm: draft.espesor_mm,
       espesor: draft.espesor,
+      ...Object.fromEntries(
+        CURED_THICKNESS_FIELDS.map((fieldName) => [fieldName, draft[fieldName]]),
+      ),
+      has_uncured_thickness: draft.has_uncured_thickness,
+      espesor_sin_curado: draft.espesor_sin_curado,
+      ...Object.fromEntries(
+        UNCURED_THICKNESS_FIELDS.map((fieldName) => [fieldName, draft[fieldName]]),
+      ),
       weight_g: draft.weight_g,
       density: formatDensityValue(draft.density),
       acabado_alias:
