@@ -1342,6 +1342,11 @@
 .chart-zero-line {
   stroke: rgba(210, 228, 229, 0.5);
   stroke-width: 1.5;
+}
+
+.chart-initial-temperature-line {
+  stroke: rgba(210, 228, 229, 0.5);
+  stroke-width: 1.5;
   stroke-dasharray: 4 4;
 }
 

@@ -186,6 +186,7 @@ function DetailedRecipeChart({ series, hoverTime, onHoverTime, temperatureUnit }
   const xScale = (value) => padding.left + (value / series.totalTime) * innerWidth
   const zeroY = padding.top + (maxPressure / (maxPressure - minPressure)) * innerHeight
   const tempScale = (value) => zeroY - (value / maxTemp) * (zeroY - padding.top)
+  const initialTemperatureY = tempScale(series.tempPoints[0].y)
   const pressureScale = (value) =>
     padding.top + ((maxPressure - value) / (maxPressure - minPressure)) * innerHeight
   const hover = hoverTime === null
@@ -252,6 +253,13 @@ function DetailedRecipeChart({ series, hoverTime, onHoverTime, temperatureUnit }
       })}
 
       <line x1={padding.left} y1={zeroY} x2={width - padding.right} y2={zeroY} className="chart-zero-line" />
+      <line
+        x1={padding.left}
+        y1={initialTemperatureY}
+        x2={width - padding.right}
+        y2={initialTemperatureY}
+        className="chart-initial-temperature-line"
+      />
       <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} className="chart-axis-line" />
       <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} className="chart-axis-line" />
       <line x1={width - padding.right} y1={padding.top} x2={width - padding.right} y2={height - padding.bottom} className="chart-axis-line alt" />
@@ -341,6 +349,7 @@ function RecipeChart({
   const xScale = (value) => padding.left + (value / totalTime) * innerWidth
   const zeroY = padding.top + (maxPressure / (maxPressure - minPressure)) * innerHeight
   const tempScale = (value) => zeroY - (value / maxTemp) * (zeroY - padding.top)
+  const initialTemperatureY = tempScale(tempPoints[0].y)
   const pressureScale = (value) =>
     padding.top + ((maxPressure - value) / (maxPressure - minPressure)) * innerHeight
 
@@ -427,6 +436,14 @@ function RecipeChart({
           x2={width - padding.right}
           y2={zeroY}
           className="chart-zero-line"
+        />
+
+        <line
+          x1={padding.left}
+          y1={initialTemperatureY}
+          x2={width - padding.right}
+          y2={initialTemperatureY}
+          className="chart-initial-temperature-line"
         />
 
         <line
