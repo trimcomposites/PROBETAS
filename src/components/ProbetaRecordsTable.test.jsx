@@ -55,4 +55,22 @@ describe('ProbetaRecordsTable', () => {
     expect(onRecordAction).toHaveBeenNthCalledWith(1, 'archive', 0)
     expect(onRecordAction).toHaveBeenNthCalledWith(2, 'delete', 0)
   })
+
+  test('usa el índice original para una acción sobre una probeta filtrada', () => {
+    const onRecordAction = vi.fn()
+
+    render(
+      <ProbetaRecordsTable
+        records={[{ id: 9, title: 'P-09', sourceIndex: 4 }]}
+        onOpenRecord={vi.fn()}
+        onDelete={vi.fn()}
+        onRecordAction={onRecordAction}
+        getRecordActions={() => [{ kind: 'archive', label: 'Archivar' }]}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archivar' }))
+
+    expect(onRecordAction).toHaveBeenCalledWith('archive', 4)
+  })
 })

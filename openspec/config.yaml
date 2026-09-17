@@ -1,0 +1,8 @@
+schema: spec-driven
+
+context: |
+  PROBETAS is a React 19 and Vite single-page application for recording composite-material test specimens.
+  Supabase provides authentication, PostgreSQL, Storage, and an Edge Function for administrator-only user operations.
+  The codebase uses JavaScript ES modules, component tests with Vitest and Testing Library, and manual SQL migrations in sql/.
+  Treat openspec/overview.md and openspec/specs/ as the living, current-state documentation. Existing docs/superpowers/ files are historical design and planning records.
+  Preserve Spanish UI copy and existing quoted PostgreSQL table names. Never assume a SQL migration has been applied remotely merely because it exists in the repository.

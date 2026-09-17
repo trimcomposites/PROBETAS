@@ -16,4 +16,15 @@ describe('SimpleSectionForm', () => {
 
     expect(screen.getByRole('textbox').closest('.form-field').className).toContain('has-field-error')
   })
+
+  test('identifica los campos obligatorios', () => {
+    render(
+      <SimpleSectionForm
+        fields={[{ name: 'fabricante_id', required: true }]}
+        renderFieldControl={() => <select required><option value="">Selecciona una opcion</option></select>}
+      />,
+    )
+
+    expect(screen.getByText('Fabricante *')).toBeTruthy()
+  })
 })

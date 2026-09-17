@@ -56,4 +56,20 @@ describe('getUserError', () => {
       fieldName: null,
     })
   })
+
+  test('explica un nombre de archivo no admitido sin mostrar la clave técnica', () => {
+    expect(
+      getUserError(
+        {
+          message:
+            'No se pudo subir el PDF a Supabase Storage: Invalid key: resina_system/pdf_mds_url/uuid/Artículo.pdf',
+        },
+        'No se pudo subir el PDF.',
+      ),
+    ).toEqual({
+      message:
+          'No se pudo subir el PDF porque el nombre del archivo contiene caracteres no compatibles. Renómbralo sin tildes ni caracteres especiales y vuelve a intentarlo.',
+      fieldName: null,
+    })
+  })
 })

@@ -5,8 +5,10 @@ import ArchivedRecordsToggle from './components/ArchivedRecordsToggle'
 import AuthScreen from './components/AuthScreen'
 import BrandWordmark from './components/BrandWordmark'
 import FormModal from './components/FormModal'
+import GlobalRecordSearch from './components/GlobalRecordSearch'
 import PasswordRecoveryScreen from './components/PasswordRecoveryScreen'
 import PdfDropzone from './components/PdfDropzone'
+import PdfReviewCell from './components/PdfReviewCell'
 import ProbetaForm from './components/ProbetaForm'
 import ProbetaRecordsTable from './components/ProbetaRecordsTable'
 import RecordActionConfirmation from './components/RecordActionConfirmation'
@@ -18,6 +20,7 @@ import SimpleSectionForm from './components/SimpleSectionForm'
 import SqlConsoleModal from './components/SqlConsoleModal'
 import UserManagementModal from './components/UserManagementModal'
 import {
+  ADMIN_ONLY_SECTIONS,
   PROBETA_STEPS,
   SECTION_ORDER,
   SIMPLE_SECTION_FIELDS,
@@ -80,11 +83,13 @@ import {
   getCalculatedDensity,
   getCalculatedThicknessFromMeasurements,
   getInputType,
+  getMissingPdfReviewDateFields,
   getRecordLabel,
   moveItem,
   parseFieldValue,
 } from './utils/records'
 import { getReferencedTableName, getTable } from './utils/schema'
+import { filterRecordRows, getSearchFieldGroups, getSearchFieldOptions } from './utils/recordSearch'
 import { getPermissionSet, normalizeRole, ROLE_LABELS } from './utils/permissions'
 import { updateRecipeStep } from './utils/recipeSteps'
 import { formatTemperatureInput } from './utils/temperatureUnits'
@@ -112,6 +117,18 @@ function getAuthErrorMessage(error, fallbackMessage) {
   return getUserError(error, fallbackMessage).message
 }
 
+function buildSearchRows(tableName, database) {
+  const records = database[tableName] ?? []
+  const rows =
+    tableName === 'PROBETA'
+      ? [...buildProbetaRows(records, database), ...buildProbetaDraftRows(database.PROBETA_BORRADORES ?? [])]
+      : tableName === 'RECETAS'
+        ? buildRecetaRows(records, database)
+        : records
+
+  return rows.map((record, sourceIndex) => ({ ...record, sourceIndex }))
+}
+
 function App() {
   const [theme, setTheme] = useState(getStoredTheme)
   const [session, setSession] = useState(null)
@@ -128,6 +145,8 @@ function App() {
   const [databaseError, setDatabaseError] = useState('')
   const [recordListMode, setRecordListMode] = useState('active')
   const [selectedTableName, setSelectedTableName] = useState(SECTION_ORDER[0])
+  const [draftSearch, setDraftSearch] = useState({ tableName: null, query: '', filters: [] })
+  const [appliedSearch, setAppliedSearch] = useState(null)
   const [selectedRecordIndex, setSelectedRecordIndex] = useState(null)
   const [activeProbetaDraftId, setActiveProbetaDraftId] = useState(null)
   const [draft, setDraft] = useState(() =>
@@ -169,16 +188,64 @@ function App() {
   const [recipeTableTemperatureUnit, setRecipeTableTemperatureUnit] = useState('celsius')
   const operationGateRef = useRef(createOperationGate())
 
-  const sectionRecordsRaw = database[selectedTableName] ?? []
-  const sectionRecords =
-    selectedTableName === 'PROBETA'
-      ? [
-          ...buildProbetaRows(sectionRecordsRaw, database),
-          ...buildProbetaDraftRows(database.PROBETA_BORRADORES ?? []),
-        ]
-      : selectedTableName === 'RECETAS'
-        ? buildRecetaRows(sectionRecordsRaw, database)
-      : sectionRecordsRaw
+  const sectionRecordsRaw = useMemo(
+    () => database[selectedTableName] ?? [],
+    [database, selectedTableName],
+  )
+  const sectionRecords = useMemo(() => {
+    if (selectedTableName === 'PROBETA') {
+      return [
+        ...buildProbetaRows(sectionRecordsRaw, database),
+        ...buildProbetaDraftRows(database.PROBETA_BORRADORES ?? []),
+      ]
+    }
+
+    if (selectedTableName === 'RECETAS') {
+      return buildRecetaRows(sectionRecordsRaw, database)
+    }
+
+    return sectionRecordsRaw
+  }, [database, sectionRecordsRaw, selectedTableName])
+  const sectionRecordsWithSourceIndexes = useMemo(
+    () => sectionRecords.map((record, sourceIndex) => ({ ...record, sourceIndex })),
+    [sectionRecords],
+  )
+  const draftSearchRows = useMemo(
+    () => (draftSearch.tableName ? buildSearchRows(draftSearch.tableName, database) : []),
+    [database, draftSearch.tableName],
+  )
+  const searchFields = useMemo(
+    () => getSearchFieldOptions(draftSearch.tableName, draftSearchRows),
+    [draftSearch.tableName, draftSearchRows],
+  )
+  const searchFieldGroups = useMemo(
+    () => getSearchFieldGroups(draftSearch.tableName, searchFields),
+    [draftSearch.tableName, searchFields],
+  )
+  const appliedSearchRows = useMemo(
+    () => (appliedSearch ? buildSearchRows(appliedSearch.tableName, database) : []),
+    [appliedSearch, database],
+  )
+  const appliedSearchFields = useMemo(
+    () =>
+      appliedSearch
+        ? getSearchFieldOptions(appliedSearch.tableName, appliedSearchRows)
+        : [],
+    [appliedSearch, appliedSearchRows],
+  )
+  const visibleSectionRecords = useMemo(() => {
+    if (!appliedSearch) {
+      return sectionRecordsWithSourceIndexes
+    }
+
+    return filterRecordRows({
+      records: appliedSearchRows,
+      fields: appliedSearchFields,
+      database,
+      query: appliedSearch.query,
+      filters: appliedSearch.filters,
+    })
+  }, [appliedSearch, appliedSearchFields, appliedSearchRows, database, sectionRecordsWithSourceIndexes])
   const probetaAverageThickness = useMemo(
     () =>
       draft.has_uncured_thickness
@@ -192,7 +259,9 @@ function App() {
   )
   const probetaCalculatedDensity = useMemo(() => getCalculatedDensity(draft), [draft])
   const simpleFields = SIMPLE_SECTION_FIELDS[selectedTableName] ?? []
-  const simpleTableFields = SIMPLE_SECTION_TABLE_FIELDS[selectedTableName] ?? simpleFields
+  const simpleTableFields = (SIMPLE_SECTION_TABLE_FIELDS[selectedTableName] ?? simpleFields).filter(
+    (field) => !['fecha_revision_mds', 'fecha_revision_msdt'].includes(field.name),
+  )
   const recipeTableFields = simpleTableFields.map((field) =>
     field.name === 'temperatura_final_c'
       ? { name: 'pico_temperatura_c', type: 'float4' }
@@ -200,6 +269,11 @@ function App() {
   )
   const currentRole = normalizeRole(currentProfile?.role)
   const permissions = getPermissionSet(currentRole)
+  const visibleSectionOrder = permissions.canManageUsers
+    ? SECTION_ORDER
+    : SECTION_ORDER.filter((tableName) => !ADMIN_ONLY_SECTIONS.includes(tableName))
+  const canManageSelectedTable =
+    !ADMIN_ONLY_SECTIONS.includes(selectedTableName) || permissions.canManageUsers
   const currentUserRoleLabel = ROLE_LABELS[currentRole]
   const isCurrentUserApproved = Boolean(currentProfile?.is_approved)
 
@@ -226,6 +300,9 @@ function App() {
     setDatabaseError('')
     setRecordListMode('active')
     setSelectedTableName(SECTION_ORDER[0])
+    setSearchTableName(null)
+    setSearchQuery('')
+    setSearchFilters([])
     setSelectedRecordIndex(null)
     setActiveProbetaDraftId(null)
     setDraft(createEmptyDraft(SECTION_ORDER[0], getTable(SECTION_ORDER[0])))
@@ -449,8 +526,15 @@ function App() {
       .catch(() => setAttachmentIndex({}))
   }, [session])
 
-  function selectTable(tableName) {
+  function selectTable(tableName, { preserveSearch = false } = {}) {
+    if (ADMIN_ONLY_SECTIONS.includes(tableName) && !permissions.canManageUsers) {
+      return
+    }
     setSelectedTableName(tableName)
+    if (!preserveSearch) {
+      setDraftSearch({ tableName: null, query: '', filters: [] })
+      setAppliedSearch(null)
+    }
     setRecordListMode('active')
     setSelectedRecordIndex(null)
     setActiveProbetaDraftId(null)
@@ -463,13 +547,38 @@ function App() {
     void refreshDatabase('active')
   }
 
+  function applySearch() {
+    if (!draftSearch.tableName) {
+      return
+    }
+
+    const snapshot = {
+      tableName: draftSearch.tableName,
+      query: draftSearch.query,
+      filters: draftSearch.filters.map((filter) => ({ ...filter })),
+    }
+
+    setAppliedSearch(snapshot)
+    selectTable(snapshot.tableName, { preserveSearch: true })
+  }
+
+  function clearSearch() {
+    setDraftSearch({ tableName: null, query: '', filters: [] })
+    setAppliedSearch(null)
+  }
+
   function openCreateForm() {
-    if (recordListMode === 'archived') {
+    if (!selectedTableName || recordListMode === 'archived') {
       return
     }
 
     if (!permissions.canCreate) {
       showFeedback('error', 'Tu rol no puede crear registros.')
+      return
+    }
+
+    if (!canManageSelectedTable) {
+      showFeedback('error', 'Solo un administrador puede gestionar esta seccion.')
       return
     }
 
@@ -566,7 +675,11 @@ function App() {
           ? buildRecetaDraftFromRecord(source, database)
         : { ...source },
     )
-    setFormMode(recordListMode === 'archived' ? 'view' : permissions.canUpdate ? 'edit' : 'view')
+    setFormMode(
+      recordListMode === 'archived' || !canManageSelectedTable || !permissions.canUpdate
+        ? 'view'
+        : 'edit',
+    )
     setActiveProbetaStep(PROBETA_STEPS[0])
     setActiveRecipeStepIndex(0)
     setFormFieldErrors({})
@@ -607,35 +720,6 @@ function App() {
     setFormMode(null)
     setActiveRecipeStepIndex(0)
     setFormFieldErrors({})
-  }
-
-  function getDraftByTarget(targetDraft) {
-    if (targetDraft === 'preImpregnadoDraft') {
-      return preImpregnadoDraft
-    }
-
-    if (targetDraft === 'relatedRecordDraft') {
-      return relatedRecordDraft
-    }
-
-    return draft
-  }
-
-  function buildPdfAttachmentName(targetDraft, fieldName) {
-    const sourceDraft = getDraftByTarget(targetDraft) ?? {}
-    const rawBaseName =
-      sourceDraft.alias ||
-      sourceDraft.nombre ||
-      sourceDraft.title ||
-      'Documento'
-    const baseName = String(rawBaseName)
-      .trim()
-      .replace(/\s+/g, '')
-      .replace(/[^a-zA-Z0-9_-]/g, '')
-    const safeBaseName = baseName || 'Documento'
-    const suffix = fieldName === 'pdf_msdt_url' ? 'MSDT' : 'MDS'
-
-    return `${safeBaseName}${suffix}.pdf`
   }
 
   function getAttachmentTableName(targetDraft, options = {}) {
@@ -881,6 +965,15 @@ function App() {
       return
     }
 
+    if (!canManageSelectedTable) {
+      showFeedback('error', 'Solo un administrador puede gestionar esta seccion.')
+      return
+    }
+
+    if (selectedTableName !== 'PROBETA' && selectedTableName !== 'RECETAS') {
+      if (!validatePdfReviewDates(draft)) return
+    }
+
     let attachmentIdsToDelete = []
 
     if (
@@ -932,6 +1025,24 @@ function App() {
     } catch (error) {
       showSafeError(error, 'No se pudo guardar el registro.', { markField: true })
     }
+  }
+
+  function validatePdfReviewDates(record) {
+    const missingDateFields = getMissingPdfReviewDateFields(record)
+
+    if (!missingDateFields.length) return true
+
+    setFormFieldErrors((currentErrors) => ({
+      ...currentErrors,
+      ...Object.fromEntries(missingDateFields.map((fieldName) => [fieldName, true])),
+    }))
+    showFeedback(
+      'error',
+      missingDateFields.length === 1
+        ? 'Indica la fecha de revisión del PDF antes de guardar.'
+        : 'Indica las fechas de revisión de los PDFs antes de guardar.',
+    )
+    return false
   }
 
   async function handleSaveProbetaDraft() {
@@ -1002,6 +1113,10 @@ function App() {
   }
 
   function getRecordActions(record) {
+    if (!canManageSelectedTable) {
+      return []
+    }
+
     if (record?.isDraft) {
       return [{ kind: 'discard', label: 'Descartar' }]
     }
@@ -1031,6 +1146,11 @@ function App() {
   }
 
   function requestRecordAction(action, index) {
+    if (!canManageSelectedTable) {
+      showFeedback('error', 'Solo un administrador puede gestionar esta seccion.')
+      return
+    }
+
     const selectedRecord = sectionRecords[index]
 
     if (action === 'discard') {
@@ -1139,6 +1259,11 @@ function App() {
       return
     }
 
+    if (ADMIN_ONLY_SECTIONS.includes(tableName) && !permissions.canManageUsers) {
+      showFeedback('error', 'Solo un administrador puede crear etiquetas de producto.')
+      return
+    }
+
     setRelatedRecordModal({ tableName, fieldName, targetDraft })
     setRelatedRecordDraft(createBaseRecord(getTable(tableName)))
     setFormFieldErrors({})
@@ -1204,6 +1329,8 @@ function App() {
       [keyField]: rawName,
     }
 
+    if (!validatePdfReviewDates(newRecord)) return
+
     try {
       const savedRecord = await saveSimpleRecord(tableName, newRecord)
       await refreshDatabase()
@@ -1216,18 +1343,20 @@ function App() {
   }
 
   async function handleAttachmentUpload(targetDraft, fieldName, file, options = {}) {
-    const filename = buildPdfAttachmentName(targetDraft, fieldName)
-    const metadata = await saveAttachment(file, {
-      fileName: filename,
-      tableName: getAttachmentTableName(targetDraft, options),
-      fieldName,
-    })
+    try {
+      const metadata = await saveAttachment(file, {
+        tableName: getAttachmentTableName(targetDraft, options),
+        fieldName,
+      })
 
-    setAttachmentIndex((currentIndex) => ({
-      ...currentIndex,
-      [metadata.id]: metadata,
-    }))
-    setDraftFieldValue(targetDraft, fieldName, metadata.id)
+      setAttachmentIndex((currentIndex) => ({
+        ...currentIndex,
+        [metadata.id]: metadata,
+      }))
+      setDraftFieldValue(targetDraft, fieldName, metadata.id)
+    } catch (error) {
+      showSafeError(error, 'No se pudo subir el PDF.')
+    }
   }
 
   function handleAttachmentClear(targetDraft, fieldName) {
@@ -1287,7 +1416,8 @@ function App() {
       options.targetDraft &&
         referencedTableName &&
         SIMPLE_SECTION_FIELDS[referencedTableName] &&
-        permissions.canCreate,
+        permissions.canCreate &&
+        (!ADMIN_ONLY_SECTIONS.includes(referencedTableName) || permissions.canManageUsers),
     )
 
     if (field.type === 'bool') {
@@ -1326,6 +1456,7 @@ function App() {
         <select
           value={value}
           disabled={isReadOnly}
+          required={field.required}
           onChange={(event) => {
             if (event.target.value === '__new_reference__') {
               openRelatedRecordModal(
@@ -1375,6 +1506,7 @@ function App() {
         type={getInputType(field)}
         value={value}
         readOnly={isReadOnly}
+        required={field.required}
         onChange={(event) => onChangeField(field, event.target.value)}
       />
     )
@@ -1526,6 +1658,8 @@ function App() {
       ...preImpregnadoDraft,
       text_id: textId,
     }
+
+    if (!validatePdfReviewDates(newMaterial)) return
 
     try {
       const savedMaterial = await saveSimpleRecord('PRE-IMPREGNADO', newMaterial)
@@ -2039,9 +2173,20 @@ function App() {
         isSigningOut={isSigningOut}
       />
 
+      <GlobalRecordSearch
+        sectionOrder={visibleSectionOrder}
+        draftSearch={draftSearch}
+        fields={searchFields}
+        fieldGroups={searchFieldGroups}
+        database={database}
+        onDraftChange={setDraftSearch}
+        onSubmit={applySearch}
+        onClear={clearSearch}
+      />
+
       <main className="workspace">
         <SectionSidebar
-          sectionOrder={SECTION_ORDER}
+          sectionOrder={visibleSectionOrder}
           selectedTableName={selectedTableName}
           database={database}
           onSelect={selectTable}
@@ -2050,8 +2195,8 @@ function App() {
         <SectionTable
           title={recordListMode === 'archived' ? `${getTableLabel(selectedTableName)} · Archivados` : getTableLabel(selectedTableName)}
           onCreate={openCreateForm}
-          canCreate={permissions.canCreate && recordListMode === 'active'}
-          hasRecords={sectionRecords.length > 0}
+          canCreate={permissions.canCreate && canManageSelectedTable && recordListMode === 'active'}
+          hasRecords={visibleSectionRecords.length > 0}
           statusMessage={
             isLoadingDatabase
               ? 'Cargando datos desde Supabase...'
@@ -2072,7 +2217,7 @@ function App() {
         >
           {selectedTableName === 'PROBETA' ? (
             <ProbetaRecordsTable
-              records={sectionRecords}
+              records={visibleSectionRecords}
               onOpenRecord={openRecordForm}
               onDelete={() => {}}
               onRecordAction={requestRecordAction}
@@ -2111,7 +2256,7 @@ function App() {
                     ? [...recipeTableFields, { name: 'escalones', type: 'int4' }]
                     : simpleTableFields
                 }
-                records={sectionRecords}
+                records={visibleSectionRecords}
                 database={database}
                 onOpenRecord={openRecordForm}
                 onDelete={() => {}}
@@ -2142,31 +2287,16 @@ function App() {
                   }
 
                   const attachmentId = record[field.name]
-                  const fileMetadata =
-                    attachmentIndex[attachmentId] ?? getAttachmentMetadata(attachmentId)
-
-                  if (!attachmentId) {
-                    return 'Sin archivo'
-                  }
+                  const reviewDateField =
+                    field.name === 'pdf_mds_url' ? 'fecha_revision_mds' : 'fecha_revision_msdt'
 
                   return (
-                    <div className="file-cell">
-                      <span className="file-name">{fileMetadata?.name ?? 'PDF'}</span>
-                      <button
-                        type="button"
-                        className="ghost-button compact"
-                        onClick={() => handleAttachmentPreview(attachmentId)}
-                      >
-                        Ver
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-button compact"
-                        onClick={() => handleAttachmentDownload(attachmentId)}
-                      >
-                        Descargar
-                      </button>
-                    </div>
+                    <PdfReviewCell
+                      attachmentId={attachmentId}
+                      reviewDate={record[reviewDateField]}
+                      onPreview={handleAttachmentPreview}
+                      onDownload={handleAttachmentDownload}
+                    />
                   )
                 }}
               />

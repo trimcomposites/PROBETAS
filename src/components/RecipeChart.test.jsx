@@ -55,6 +55,31 @@ describe('RecipeChart', () => {
     )
   })
 
+  test('sitúa la referencia punteada en la temperatura inicial en ambas gráficas', () => {
+    const { container } = render(
+      <RecipeChart
+        steps={[
+          {
+            temperatura_c: 20,
+            temp_final_c: 40,
+            presion_bar: 1,
+            pres_final_bar: 2,
+            vacio_mbar: 1000,
+            vacio_final_mbar: 100,
+            stepDuration: 10,
+          },
+        ]}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir grafica detallada' }))
+
+    const references = container.querySelectorAll('line.chart-initial-temperature-line')
+    expect(references).toHaveLength(2)
+    expect(Number(references[0].getAttribute('y1'))).toBeCloseTo(198.41, 2)
+    expect(Number(references[1].getAttribute('y1'))).toBeCloseTo(387.25, 2)
+  })
+
   test('amplía los límites cuando la temperatura o presión los superan', () => {
     render(
       <RecipeChart
